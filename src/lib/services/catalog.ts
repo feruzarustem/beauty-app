@@ -1,9 +1,9 @@
-import type { MasterCategory, User } from "@prisma/client";
+import type { MasterCategory, ServiceKind, User } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth/guard";
 import { CATEGORY_ORDER } from "@/lib/categories";
 
-export type CatalogItem = { id: string; name: string; priceMin: number; priceMax: number | null; openEnded: boolean; details: string | null };
+export type CatalogItem = { id: string; name: string; priceMin: number; priceMax: number | null; openEnded: boolean; details: string | null; kind: ServiceKind };
 export type CatalogGroup = { groupName: string; items: CatalogItem[] };
 export type CatalogCategory = { category: MasterCategory; groups: CatalogGroup[] };
 
@@ -16,7 +16,7 @@ export async function listCatalog(actor: User): Promise<CatalogCategory[]> {
     for (const r of rows.filter((x) => x.category === category)) {
       let g = groups.find((x) => x.groupName === r.groupName);
       if (!g) groups.push((g = { groupName: r.groupName, items: [] }));
-      g.items.push({ id: r.id, name: r.name, priceMin: r.priceMin, priceMax: r.priceMax, openEnded: r.openEnded, details: r.details });
+      g.items.push({ id: r.id, name: r.name, priceMin: r.priceMin, priceMax: r.priceMax, openEnded: r.openEnded, details: r.details, kind: r.kind });
     }
     return { category, groups };
   });

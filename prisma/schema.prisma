@@ -19,6 +19,12 @@ enum MasterCategory {
   hair
 }
 
+enum ServiceKind {
+  main
+  addon
+  option
+}
+
 enum PaymentMethod {
   cash
   transfer
@@ -74,6 +80,7 @@ model Visit {
   createdBy     User          @relation("VisitCreator", fields: [createdById], references: [id])
   createdAt     DateTime      @default(now())
   adjustments   VisitAdjustment[]
+  items         VisitItem[]
 
   @@index([visitDate, masterId])
 }
@@ -132,6 +139,24 @@ model Service {
   openEnded Boolean        @default(false)
   details   String?
   sortOrder Int            @default(0)
+  kind      ServiceKind    @default(main)
 
   @@unique([category, groupName, name])
+}
+
+/// Позиция визита: снимок услуги на момент записи. Visit.amount = сумма price всех позиций.
+model VisitItem {
+  id             String      @id @default(cuid())
+  visitId        String
+  visit          Visit       @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  serviceId      String?
+  name           String
+  kind           ServiceKind
+  priceMin       Int
+  price          Int
+  belowMinReason String?
+  setById        String
+  createdAt      DateTime    @default(now())
+
+  @@index([visitId])
 }

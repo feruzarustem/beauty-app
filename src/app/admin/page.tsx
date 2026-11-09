@@ -36,7 +36,7 @@ export default async function AdminHome() {
           <tbody>
             {visits.map((v) => (
               <tr key={v.id}>
-                <td>{v.masterName}{v.createdByMaster && <span className="pill" style={{ marginLeft: 8 }}>записала сама</span>}</td>
+                <td>{v.masterName}</td>
                 <td>{v.clientName ?? "—"}</td>
                 <td>{v.paymentMethod === "cash" ? "наличные" : "перевод"}</td>
                 <td className="num">{fmt(v.amount)}</td>

@@ -1,4 +1,4 @@
-import type { MasterCategory } from "@prisma/client";
+import type { MasterCategory, ServiceKind } from "@prisma/client";
 
 export type ServiceSeed = {
   category: MasterCategory;
@@ -8,6 +8,7 @@ export type ServiceSeed = {
   priceMax?: number;
   openEnded?: boolean;
   details?: string;
+  kind?: ServiceKind;
 };
 
 const s = (category: MasterCategory, groupName: string, name: string, priceMin: number, extra: Partial<ServiceSeed> = {}): ServiceSeed => ({
@@ -19,7 +20,9 @@ const L = (g: string, n: string, p: number, e: Partial<ServiceSeed> = {}) => s("
 const N = (g: string, n: string, p: number, e: Partial<ServiceSeed> = {}) => s("nail", g, n, p, e);
 
 /** Прайс-лист LASH GOLDEN (цены в тенге). Источник — прайс, присланный владельцем. */
-export const SERVICES: ServiceSeed[] = [
+const ADDON_GROUPS = new Set(["Дополнительно", "Extra service"]);
+
+const RAW: ServiceSeed[] = [
   // Hair
   H("Стрижки", "Чёлка", 1000, { priceMax: 2000 }),
   H("Стрижки", "Кончики", 3000, { openEnded: true }),
@@ -72,3 +75,6 @@ export const SERVICES: ServiceSeed[] = [
   N("Дополнительно", "Ремонт ногтя", 500, { openEnded: true }),
   N("Дополнительно", "Парафинотерапия", 2000),
 ];
+
+/** Основная услуга или дополнительная: дополнительные группы помечены автоматически. */
+export const SERVICES: ServiceSeed[] = RAW.map((x) => ({ ...x, kind: x.kind ?? (ADDON_GROUPS.has(x.groupName) ? "addon" : "main") }));

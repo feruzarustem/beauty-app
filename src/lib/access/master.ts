@@ -1,14 +1,13 @@
 // Единственный слой данных для роли «мастер». Он отдаёт только явно перечисленные поля
 // (никаких объектов Prisma целиком) и отбирает данные по идентификатору самого мастера.
-import type { PaymentMethod, User } from "@prisma/client";
+import type { User } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth/guard";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import { masterShare } from "@/lib/money";
-import { todayInBusinessTz, type Period } from "@/lib/periods";
+import type { Period } from "@/lib/periods";
 import { assertPeriod, figures } from "@/lib/services/payroll";
 import { getMasterSharePercent } from "@/lib/services/settings";
-import { recordVisit } from "@/lib/services/visits";
 
 export type MasterClientDto = { id: string; name: string };
 export type MasterVisitDto = {
@@ -17,6 +16,7 @@ export type MasterVisitDto = {
   clientName: string | null;
   amount: number;
   myShare: number;
+  services: string[];
 };
 export type MasterEarningsDto = {
   calculated: number;
@@ -30,9 +30,10 @@ const visitSelect = {
   visitDate: true,
   amount: true,
   client: { select: { name: true } },
+  items: { select: { name: true } },
 } as const;
 
-type VisitRow = { id: string; visitDate: Date; amount: number; client: { name: string } | null };
+type VisitRow = { id: string; visitDate: Date; amount: number; client: { name: string } | null; items: { name: string }[] };
 
 function toDto(v: VisitRow, percent: number): MasterVisitDto {
   return {
@@ -41,6 +42,7 @@ function toDto(v: VisitRow, percent: number): MasterVisitDto {
     clientName: v.client?.name ?? null,
     amount: v.amount,
     myShare: masterShare(v.amount, percent),
+    services: v.items.map((i) => i.name),
   };
 }
 
@@ -99,51 +101,4 @@ function rangeDates(range: Period): { start: Date; end: Date } {
     throw new ValidationError("Неверный диапазон дат");
   }
   return { start: new Date(`${range.start}T00:00:00.000Z`), end: new Date(`${range.end}T00:00:00.000Z`) };
-}
-
-export type MasterServiceDto = {
-  id: string;
-  groupName: string;
-  name: string;
-  priceMin: number;
-  priceMax: number | null;
-  openEnded: boolean;
-};
-
-/** Прайс только по её направлению: нужен, чтобы подставить цену в форму. */
-export async function masterServices(actor: User): Promise<MasterServiceDto[]> {
-  requireRole(actor, "master");
-  if (!actor.category) return [];
-  return prisma.service.findMany({
-    where: { category: actor.category },
-    select: { id: true, groupName: true, name: true, priceMin: true, priceMax: true, openEnded: true },
-    orderBy: { sortOrder: "asc" },
-  });
-}
-
-/**
- * Мастер записывает свой визит в конце процедуры. Мастер всегда она сама, дата всегда сегодня.
- * Клиент ищется только среди её клиентов по имени; чужих клиентов она не находит и не получает.
- */
-export async function createMyVisit(
-  actor: User,
-  input: { clientName: string; amount: unknown; paymentMethod: PaymentMethod; confirmDuplicate?: boolean },
-): Promise<{ id: string }> {
-  requireRole(actor, "master");
-  const name = String(input.clientName ?? "").trim();
-  if (!name) throw new ValidationError("Укажите имя клиента");
-  if (name.length > 100) throw new ValidationError("Слишком длинное имя клиента");
-  const own = await prisma.client.findFirst({
-    where: { assignedMasterId: actor.id, name: { equals: name, mode: "insensitive" } },
-    select: { id: true },
-  });
-  const clientId = own?.id ?? (await prisma.client.create({ data: { name, assignedMasterId: actor.id }, select: { id: true } })).id;
-  return recordVisit(actor, {
-    visitDate: todayInBusinessTz(new Date()),
-    masterId: actor.id,
-    clientId,
-    amount: input.amount,
-    paymentMethod: input.paymentMethod,
-    confirmDuplicate: input.confirmDuplicate,
-  });
 }

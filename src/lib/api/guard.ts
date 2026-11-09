@@ -1,8 +1,7 @@
 import type { User } from "@prisma/client";
 import { requireRole } from "@/lib/auth/guard";
 import { getCurrentUser, SESSION_COOKIE } from "@/lib/auth/session";
-import { DuplicateWarning, ForbiddenError, NotFoundError, PeriodPaidError, ValidationError } from "@/lib/errors";
-import { AmountError } from "@/lib/money";
+import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 
 function tokenFrom(req: Request): string | undefined {
   const header = req.headers.get("cookie") ?? "";
@@ -26,8 +25,7 @@ export async function withRole(
   } catch (e) {
     if (e instanceof ForbiddenError) return Response.json({ error: "Недостаточно прав" }, { status: 403 });
     if (e instanceof NotFoundError) return Response.json({ error: "Не найдено" }, { status: 404 });
-    if (e instanceof ValidationError || e instanceof AmountError) return Response.json({ error: e.message }, { status: 400 });
-    if (e instanceof DuplicateWarning || e instanceof PeriodPaidError) return Response.json({ error: e.message }, { status: 409 });
+    if (e instanceof ValidationError) return Response.json({ error: e.message }, { status: 400 });
     throw e;
   }
 }

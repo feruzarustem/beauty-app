@@ -26,6 +26,10 @@ describe("price list data", () => {
       if (s.priceMax != null) expect(s.priceMax).toBeGreaterThan(s.priceMin);
     }
   });
+  test("add-on groups are marked as add-ons, the rest are main services", () => {
+    expect(SERVICES.find((s) => s.name === "Мокрый эффект")?.kind).toBe("addon");
+    expect(SERVICES.find((s) => s.name === "Стрижка")?.kind).toBe("main");
+  });
   test("covers all four categories", () => {
     expect(new Set(SERVICES.map((s) => s.category))).toEqual(new Set(["lash", "nail", "lami_brow", "hair"]));
   });

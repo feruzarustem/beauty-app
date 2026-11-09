@@ -65,7 +65,7 @@ describe("masterClients", () => {
 describe("masterVisits / masterVisit", () => {
   test("own visits only, with exact safe fields and 50% share rounded down", async () => {
     const list = await masterVisits(masterA, P1);
-    expect(list).toEqual([{ id: visitA, visitDate: "2026-03-05", clientName: "Айгуль", amount: 15_001, myShare: 7_500 }]);
+    expect(list).toEqual([{ id: visitA, visitDate: "2026-03-05", clientName: "Айгуль", amount: 15_001, myShare: 7_500, services: [] }]);
   });
   test("visits outside the range are not returned", async () => {
     expect(await masterVisits(masterA, { start: "2026-03-16", end: "2026-03-31" })).toEqual([]);

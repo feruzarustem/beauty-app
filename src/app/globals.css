@@ -417,3 +417,134 @@ button.danger {
   h1 { font-size: 1.6rem; }
   .stats { grid-template-columns: 1fr 1fr; }
 }
+
+/* ---------- Форма записи: услуги ---------- */
+.visit-form {
+  max-width: 640px;
+}
+.svc-group {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 6px 14px 10px;
+  background: var(--card);
+}
+.svc-group legend {
+  padding: 0 8px;
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.svc {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  transition: background 0.25s var(--ease);
+}
+.svc:last-child {
+  border-bottom: 0;
+}
+.svc.on {
+  background: linear-gradient(90deg, var(--blush), transparent);
+  margin: 0 -14px;
+  padding: 8px 14px;
+}
+.svc-head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  cursor: pointer;
+}
+.svc-head input {
+  accent-color: var(--gold);
+  width: 18px;
+  height: 18px;
+  padding: 0;
+}
+.svc-price {
+  white-space: nowrap;
+  color: var(--muted);
+}
+.tag {
+  margin-left: 8px;
+  font-style: normal;
+  font-size: 0.7rem;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--gold-soft);
+}
+.svc-body {
+  display: grid;
+  gap: 8px;
+  padding: 8px 0 2px 28px;
+}
+.switch {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  cursor: pointer;
+}
+.switch input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.switch .track {
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--line);
+  position: relative;
+  transition: background 0.25s var(--ease);
+  flex: none;
+}
+.switch .track::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.25s var(--ease);
+}
+.switch input:checked + .track {
+  background: var(--gold);
+}
+.switch input:checked + .track::after {
+  transform: translateX(18px);
+}
+.switch input:focus-visible + .track {
+  box-shadow: 0 0 0 3px var(--gold-soft);
+}
+.stepper {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.stepper input {
+  width: 120px;
+  text-align: center;
+}
+.stepper button {
+  width: 40px;
+  padding: 10px 0;
+}
+.total .label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.total-sum {
+  font-size: 1.5rem;
+  color: var(--gold);
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
