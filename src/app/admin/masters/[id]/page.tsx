@@ -1,10 +1,41 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { friendlyMessage } from "@/lib/actionErrors";
+import { eachDay, fmtDay, isIsoDate } from "@/lib/dates";
+import { addDaysOff, listDaysOff, removeDayOff } from "@/lib/services/dayoff";
 import { requireUser } from "@/lib/auth/current";
 import { CATEGORY_INFO } from "@/lib/categories";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import { periodFor, shiftPeriod, todayInBusinessTz, type Period } from "@/lib/periods";
 import { getMasterProfile } from "@/lib/services/masters";
+
+async function addOff(formData: FormData) {
+  "use server";
+  const admin = await requireUser("admin");
+  const masterId = String(formData.get("masterId"));
+  const from = String(formData.get("from"));
+  const to = String(formData.get("to") || from);
+  const back = `/admin/masters/${masterId}`;
+  try {
+    if (!isIsoDate(from) || !isIsoDate(to) || to < from) throw new ValidationError("Укажите корректные даты");
+    const n = Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000) + 1;
+    if (n > 62) throw new ValidationError("Не больше 62 дней за раз");
+    await addDaysOff(admin, masterId, eachDay(from, n));
+  } catch (e) {
+    const msg = friendlyMessage(e);
+    if (!msg) throw e;
+    redirect(`${back}?error=${encodeURIComponent(msg)}`);
+  }
+  redirect(back);
+}
+
+async function removeOff(formData: FormData) {
+  "use server";
+  const admin = await requireUser("admin");
+  const masterId = String(formData.get("masterId"));
+  await removeDayOff(admin, masterId, String(formData.get("date")));
+  redirect(`/admin/masters/${masterId}`);
+}
 
 const fmt = (n: number) => `${n.toLocaleString("ru-RU")} ₸`;
 
@@ -13,7 +44,7 @@ export default async function MasterProfilePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ p?: string }>;
+  searchParams: Promise<{ p?: string; error?: string }>;
 }) {
   const admin = await requireUser("admin");
   const { id } = await params;
@@ -32,6 +63,8 @@ export default async function MasterProfilePage({
     if (e instanceof NotFoundError) notFound();
     throw e;
   }
+  const todayIso = todayInBusinessTz(new Date());
+  const upcomingOff = (await listDaysOff(admin, todayIso, eachDay(todayIso, 120)[119])).filter((x) => x.masterId === profile.id);
   const prev = shiftPeriod(period, -1);
   const next = shiftPeriod(period, 1);
   const cat = profile.category;
@@ -73,6 +106,29 @@ export default async function MasterProfilePage({
           </tbody>
         </table>
       </div>
+    <h2>Выходные</h2>
+      <p className="sub">Выходной одного мастера не влияет на остальных. Он виден в общем календаре и в расписании мастера.</p>
+      {sp.error && <p role="alert" className="alert">{sp.error}</p>}
+      <form action={addOff} className="inline-form">
+        <input type="hidden" name="masterId" value={profile.id} />
+        <input name="from" type="date" min={todayIso} required aria-label="С даты" />
+        <input name="to" type="date" min={todayIso} aria-label="По дату (необязательно)" />
+        <button type="submit">Отметить выходные</button>
+      </form>
+      <p className="muted" style={{ marginTop: 6 }}>Один день: заполните только первую дату. Несколько дней подряд: укажите начало и конец.</p>
+      <ul className="list" style={{ marginTop: 12 }}>
+        {upcomingOff.map((x) => (
+          <li key={x.date} className="card row">
+            <span>{fmtDay(x.date)}</span>
+            <form action={removeOff}>
+              <input type="hidden" name="masterId" value={profile.id} />
+              <input type="hidden" name="date" value={x.date} />
+              <button type="submit" className="ghost">Удалить</button>
+            </form>
+          </li>
+        ))}
+        {upcomingOff.length === 0 && <li className="muted">Ближайших выходных нет</li>}
+      </ul>
     </>
   );
 }

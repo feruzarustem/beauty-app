@@ -1,16 +1,17 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth/current";
-import { DuplicateWarning, ValidationError } from "@/lib/errors";
-import { AmountError } from "@/lib/money";
+import { DuplicateWarning } from "@/lib/errors";
+import { friendlyMessage } from "@/lib/actionErrors";
 import { todayInBusinessTz } from "@/lib/periods";
 import { findOrCreateClientByName } from "@/lib/services/clients";
 import { createVisitWithItems } from "@/lib/services/visits";
 import { listCatalog } from "@/lib/services/catalog";
 import { CATEGORY_INFO } from "@/lib/categories";
+import { parsePayment } from "@/lib/payment";
 import { VisitForm, type InitialItem } from "@/components/VisitForm";
 
-type SP = { error?: string; dup?: string; masterId?: string; client?: string; items?: string; method?: string; date?: string };
+type SP = { error?: string; dup?: string; masterId?: string; client?: string; items?: string; method?: string; date?: string; time?: string; status?: string };
 
 function parseItems(raw: string): InitialItem[] {
   try {
@@ -28,7 +29,7 @@ async function addVisit(formData: FormData) {
   "use server";
   const admin = await requireUser("admin");
   const f = (k: string) => String(formData.get(k) ?? "");
-  const keep = new URLSearchParams({ masterId: f("masterId"), client: f("client"), items: f("items"), method: f("method"), date: f("date") });
+  const keep = new URLSearchParams({ masterId: f("masterId"), client: f("client"), items: f("items"), method: f("method"), date: f("date"), time: f("startTime"), status: f("status") });
   try {
     const client = await findOrCreateClientByName(admin, f("client"), f("masterId"));
     await createVisitWithItems(admin, {
@@ -36,7 +37,9 @@ async function addVisit(formData: FormData) {
       masterId: f("masterId"),
       clientId: client.id,
       items: parseItems(f("items")),
-      paymentMethod: f("method") === "transfer" ? "transfer" : "cash",
+      paymentMethod: parsePayment(f("method")),
+      status: f("status") === "scheduled" ? "scheduled" : "done",
+      startTime: f("startTime") || undefined,
       confirmDuplicate: formData.get("confirmDuplicate") === "on",
     });
   } catch (e) {
@@ -44,13 +47,14 @@ async function addVisit(formData: FormData) {
       keep.set("dup", "1");
       redirect(`/admin/visits/new?${keep}`);
     }
-    if (e instanceof AmountError || e instanceof ValidationError) {
-      keep.set("error", e.message);
+    const msg = friendlyMessage(e);
+    if (msg) {
+      keep.set("error", msg);
       redirect(`/admin/visits/new?${keep}`);
     }
     throw e;
   }
-  redirect("/admin");
+  redirect(f("status") === "scheduled" ? `/admin/calendar?d=${f("date")}` : "/admin");
 }
 
 export default async function NewVisitPage({ searchParams }: { searchParams: Promise<SP> }) {
@@ -84,7 +88,7 @@ export default async function NewVisitPage({ searchParams }: { searchParams: Pro
         clients={clients.map((c) => c.name)}
         action={addVisit}
         today={todayInBusinessTz(new Date())}
-        initial={{ masterId: sp.masterId, client: sp.client, method: sp.method, date: sp.date, items: parseItems(sp.items ?? "[]"), dup: !!sp.dup }}
+        initial={{ masterId: sp.masterId, client: sp.client, method: sp.method, date: sp.date, time: sp.time, status: sp.status, items: parseItems(sp.items ?? "[]"), dup: !!sp.dup }}
       />
     </>
   );

@@ -3,12 +3,16 @@ import { Nav } from "@/components/Nav";
 
 const ITEMS = [
   { href: "/admin", label: "Главная" },
+  { href: "/admin/calendar", label: "Календарь" },
   { href: "/admin/visits/new", label: "Новый визит" },
   { href: "/admin/masters", label: "Мастера" },
   { href: "/admin/services", label: "Услуги" },
+  { href: "/admin/closing", label: "Закрытие дня" },
   { href: "/admin/payroll", label: "Зарплата" },
+  { href: "/admin/reports", label: "Отчёты" },
   { href: "/admin/clients", label: "Клиенты" },
   { href: "/admin/staff", label: "Сотрудники" },
+  { href: "/admin/audit", label: "Журнал" },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

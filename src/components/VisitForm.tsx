@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { formatPrice } from "@/lib/price";
+import { PAYMENT_LABEL, PAYMENT_METHODS } from "@/lib/payment";
 
 export type FormService = {
   id: string;
@@ -29,14 +30,19 @@ export function VisitForm({
   action,
   today,
   initial,
+  mode = "create",
+  visitId,
 }: {
   masters: FormMaster[];
   services: FormService[];
   clients: string[];
   action: (formData: FormData) => void | Promise<void>;
   today: string;
-  initial: { masterId?: string; client?: string; method?: string; date?: string; items?: InitialItem[]; dup?: boolean };
+  initial: { masterId?: string; client?: string; method?: string; date?: string; time?: string; status?: string; items?: InitialItem[]; dup?: boolean };
+  mode?: "create" | "edit";
+  visitId?: string;
 }) {
+  const [status, setStatus] = useState(initial.status === "scheduled" ? "scheduled" : "done");
   const [masterId, setMasterId] = useState(initial.masterId ?? "");
   const [chosen, setChosen] = useState<Record<string, Chosen>>(() => {
     const m: Record<string, Chosen> = {};
@@ -168,17 +174,28 @@ export function VisitForm({
       </div>
 
       <input type="hidden" name="items" value={JSON.stringify(payload)} />
-      <select name="method" defaultValue={initial.method ?? "cash"}>
-        <option value="cash">Наличные</option>
-        <option value="transfer">Перевод</option>
+      {visitId && <input type="hidden" name="id" value={visitId} />}
+      <select name="method" defaultValue={initial.method ?? "cash"} aria-label="Способ оплаты">
+        {PAYMENT_METHODS.map((m) => (
+          <option key={m} value={m}>{PAYMENT_LABEL[m]}</option>
+        ))}
       </select>
-      <input name="date" type="date" defaultValue={initial.date ?? today} required />
+      {mode === "create" && (
+        <>
+          <select name="status" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Тип записи">
+            <option value="done">Уже выполнена (оплачена)</option>
+            <option value="scheduled">Запись на будущее</option>
+          </select>
+          <input name="date" type="date" defaultValue={initial.date ?? today} required />
+          <input name="startTime" type="time" min="08:00" max="19:59" defaultValue={initial.time ?? ""} required={status === "scheduled"} aria-label="Время начала" />
+        </>
+      )}
       {initial.dup && (
         <label>
           <input type="checkbox" name="confirmDuplicate" /> Это другой визит
         </label>
       )}
-      <button type="submit" disabled={paid.length === 0}>Сохранить визит</button>
+      <button type="submit" disabled={paid.length === 0}>{mode === "edit" ? "Сохранить изменения" : "Сохранить"}</button>
     </form>
   );
 }

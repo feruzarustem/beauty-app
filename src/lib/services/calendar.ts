@@ -42,3 +42,40 @@ export async function calendarRange(actor: User, fromIso: string, toIso: string)
   }));
   return { entries, daysOff: off.map((d) => ({ masterId: d.masterId, date: d.date.toISOString().slice(0, 10) })) };
 }
+
+export type AppointmentDetail = CalendarEntry & {
+  clientId: string | null;
+  clientPhone: string | null;
+  cancelledReason: string | null;
+  items: { id: string; serviceId: string | null; name: string; price: number; priceMin: number; belowMinReason: string | null }[];
+};
+
+/** Карточка записи для администратора (с телефоном клиента). */
+export async function getAppointment(actor: User, id: string): Promise<AppointmentDetail | null> {
+  requireRole(actor, "admin");
+  const v = await prisma.visit.findUnique({
+    where: { id },
+    include: {
+      master: { select: { name: true } },
+      client: { select: { name: true, contact: { select: { phone: true } } } },
+      items: { orderBy: { createdAt: "asc" } },
+    },
+  });
+  if (!v) return null;
+  return {
+    id: v.id,
+    date: v.visitDate.toISOString().slice(0, 10),
+    time: v.startTime,
+    masterId: v.masterId,
+    masterName: v.master.name,
+    clientId: v.clientId,
+    clientName: v.client?.name ?? null,
+    clientPhone: v.client?.contact?.phone ?? null,
+    services: v.items.map((i) => i.name),
+    status: v.status,
+    amount: v.amount,
+    paymentMethod: v.paymentMethod,
+    cancelledReason: v.cancelledReason,
+    items: v.items.map((i) => ({ id: i.id, serviceId: i.serviceId, name: i.name, price: i.price, priceMin: i.priceMin, belowMinReason: i.belowMinReason })),
+  };
+}

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth/current";
+import { PAYMENT_LABEL } from "@/lib/payment";
 import { todayInBusinessTz } from "@/lib/periods";
 import { listVisitsForDay } from "@/lib/services/visits";
 
@@ -38,7 +39,7 @@ export default async function AdminHome() {
               <tr key={v.id}>
                 <td>{v.masterName}</td>
                 <td>{v.clientName ?? "—"}</td>
-                <td>{v.paymentMethod === "cash" ? "наличные" : "перевод"}</td>
+                <td>{PAYMENT_LABEL[v.paymentMethod]}</td>
                 <td className="num">{fmt(v.amount)}</td>
               </tr>
             ))}

@@ -19,6 +19,7 @@ export default async function MasterHome({ searchParams }: { searchParams: Promi
       </header>
       <main className="content" style={{ margin: "0 auto" }}>
         <h1>Мои визиты</h1>
+        <p><Link href="/master/schedule"><button type="button" className="ghost">Моё расписание на неделю</button></Link></p>
         <div className="period">
           <Link href={`/master?p=${prev.start}`} aria-label="Предыдущий период">←</Link>
           <strong>{period.start} — {period.end}</strong>
