@@ -47,15 +47,16 @@ export default async function NewVisitPage({ searchParams }: { searchParams: Pro
     prisma.client.findMany({ select: { name: true }, orderBy: { name: "asc" } }),
   ]);
   return (
-    <main style={{ maxWidth: 480, margin: "0 auto", padding: 16 }}>
+    <>
       <h1>Новый визит</h1>
-      {sp.error && <p role="alert">{sp.error}</p>}
+      <p className="sub">Мастер называет итоговую сумму, вы записываете</p>
+      {sp.error && <p role="alert" className="alert">{sp.error}</p>}
       {sp.dup && (
-        <p role="alert">
+        <p role="alert" className="alert">
           Похоже, такой визит уже записан. Если это другой визит, отметьте галочку ниже и сохраните ещё раз.
         </p>
       )}
-      <form action={addVisit} style={{ display: "grid", gap: 12 }}>
+      <form action={addVisit} className="stack">
         <select name="masterId" defaultValue={sp.masterId ?? ""} required>
           <option value="" disabled>Мастер</option>
           {masters.map((m) => (
@@ -81,6 +82,6 @@ export default async function NewVisitPage({ searchParams }: { searchParams: Pro
         )}
         <button type="submit">Сохранить</button>
       </form>
-    </main>
+    </>
   );
 }

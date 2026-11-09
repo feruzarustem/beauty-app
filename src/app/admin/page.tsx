@@ -11,27 +11,43 @@ export default async function AdminHome() {
   const visits = await listVisitsForDay(admin, today);
   const total = visits.reduce((s, v) => s + v.amount, 0);
   return (
-    <main style={{ maxWidth: 480, margin: "0 auto", padding: 16 }}>
-      <h1>Сегодня, {today}</h1>
+    <>
+      <h1>Сегодня</h1>
+      <p className="sub">{today}</p>
+      <div className="stats">
+        <div className="card stat">
+          <div className="label">Визитов</div>
+          <div className="value">{visits.length}</div>
+        </div>
+        <div className="card stat">
+          <div className="label">Выручка</div>
+          <div className="value">{fmt(total)}</div>
+        </div>
+      </div>
       <p>
-        Визитов: {visits.length} · Выручка: <strong>{fmt(total)}</strong>
+        <Link href="/admin/visits/new"><button type="button">+ Добавить визит</button></Link>
       </p>
-      <nav style={{ display: "flex", gap: 12, flexWrap: "wrap", margin: "12px 0" }}>
-        <Link href="/admin/visits/new">+ Добавить визит</Link>
-        <Link href="/admin/payroll">Зарплата</Link>
-        <Link href="/admin/clients">Клиенты</Link>
-        <Link href="/admin/staff">Сотрудники</Link>
-      </nav>
-      <ul style={{ padding: 0, listStyle: "none", display: "grid", gap: 8 }}>
-        {visits.map((v) => (
-          <li key={v.id}>
-            {v.masterName} · {v.clientName ?? "—"} · {fmt(v.amount)} · {v.paymentMethod === "cash" ? "наличные" : "перевод"}
-          </li>
-        ))}
-      </ul>
-      <form method="POST" action="/api/auth/logout">
-        <button type="submit">Выйти</button>
-      </form>
-    </main>
+      <h2>Визиты дня</h2>
+      <div className="card">
+        <table>
+          <thead>
+            <tr><th>Мастер</th><th>Клиент</th><th>Оплата</th><th className="num">Сумма</th></tr>
+          </thead>
+          <tbody>
+            {visits.map((v) => (
+              <tr key={v.id}>
+                <td>{v.masterName}</td>
+                <td>{v.clientName ?? "—"}</td>
+                <td>{v.paymentMethod === "cash" ? "наличные" : "перевод"}</td>
+                <td className="num">{fmt(v.amount)}</td>
+              </tr>
+            ))}
+            {visits.length === 0 && (
+              <tr><td colSpan={4} className="muted">Сегодня визитов пока нет</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }

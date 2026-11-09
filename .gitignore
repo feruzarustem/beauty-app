@@ -34,3 +34,6 @@ next-env.d.ts
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Шрифты бренда: лицензия неизвестна, репозиторий публичный — в git не кладём
+/public/fonts/

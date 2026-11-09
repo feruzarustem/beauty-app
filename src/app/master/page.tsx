@@ -13,28 +13,49 @@ export default async function MasterHome({ searchParams }: { searchParams: Promi
   const prev = shiftPeriod(period, -1);
   const next = shiftPeriod(period, 1);
   return (
-    <main style={{ maxWidth: 480, margin: "0 auto", padding: 16 }}>
-      <h1>Мои визиты</h1>
-      <p style={{ display: "flex", gap: 12, alignItems: "center" }}>
-        <Link href={`/master?p=${prev.start}`}>←</Link>
-        <strong>{period.start} — {period.end}</strong>
-        <Link href={`/master?p=${next.start}`}>→</Link>
-      </p>
-      <p>
-        Мой заработок за период: <strong>{fmt(earn.final)}</strong> ({earn.status === "paid" ? "выплачено" : "ожидает выплаты"})
-      </p>
-      {earn.adjustment !== 0 && <p>В том числе корректировка: {fmt(earn.adjustment)}</p>}
-      <ul style={{ padding: 0, listStyle: "none", display: "grid", gap: 8 }}>
-        {visits.map((v) => (
-          <li key={v.id}>
-            {v.visitDate} · {v.clientName ?? "—"} · {fmt(v.amount)} · мне {fmt(v.myShare)}
-          </li>
-        ))}
-        {visits.length === 0 && <li>В этом периоде визитов нет</li>}
-      </ul>
-      <form method="POST" action="/api/auth/logout">
-        <button type="submit">Выйти</button>
-      </form>
-    </main>
+    <>
+      <header className="topbar-solo">
+        <span className="script">Lash Golden</span>
+      </header>
+      <main className="content" style={{ margin: "0 auto" }}>
+        <h1>Мои визиты</h1>
+        <div className="period">
+          <Link href={`/master?p=${prev.start}`} aria-label="Предыдущий период">←</Link>
+          <strong>{period.start} — {period.end}</strong>
+          <Link href={`/master?p=${next.start}`} aria-label="Следующий период">→</Link>
+        </div>
+        <div className="card stat" style={{ marginBottom: 20 }}>
+          <div className="label">Мой заработок за период</div>
+          <div className="value">{fmt(earn.final)}</div>
+          <span className={earn.status === "paid" ? "pill paid" : "pill"}>
+            {earn.status === "paid" ? "выплачено" : "ожидает выплаты"}
+          </span>
+          {earn.adjustment !== 0 && <p className="muted">В том числе корректировка: {fmt(earn.adjustment)}</p>}
+        </div>
+        <div className="card">
+          <table>
+            <thead>
+              <tr><th>Дата</th><th>Клиент</th><th className="num">Сумма</th><th className="num">Мне</th></tr>
+            </thead>
+            <tbody>
+              {visits.map((v) => (
+                <tr key={v.id}>
+                  <td>{v.visitDate}</td>
+                  <td>{v.clientName ?? "—"}</td>
+                  <td className="num">{fmt(v.amount)}</td>
+                  <td className="num">{fmt(v.myShare)}</td>
+                </tr>
+              ))}
+              {visits.length === 0 && (
+                <tr><td colSpan={4} className="muted">В этом периоде визитов нет</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <form method="POST" action="/api/auth/logout" style={{ marginTop: 24 }}>
+          <button type="submit" className="ghost">Выйти</button>
+        </form>
+      </main>
+    </>
   );
 }

@@ -12,6 +12,13 @@ enum Role {
   master
 }
 
+enum MasterCategory {
+  lash
+  nail
+  lami_brow
+  hair
+}
+
 enum PaymentMethod {
   cash
   transfer
@@ -29,6 +36,7 @@ model User {
   passwordHash String
   role         Role
   active       Boolean @default(true)
+  category     MasterCategory?
 
   clients     Client[]
   visits      Visit[]  @relation("VisitMaster")

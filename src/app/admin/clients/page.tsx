@@ -45,26 +45,32 @@ export default async function ClientsPage() {
     prisma.client.findMany({ include: { contact: true, assignedMaster: { select: { name: true } } }, orderBy: { name: "asc" } }),
   ]);
   return (
-    <main style={{ maxWidth: 520, margin: "0 auto", padding: 16 }}>
+    <>
       <h1>Клиенты</h1>
-      <ul style={{ padding: 0, listStyle: "none", display: "grid", gap: 12 }}>
+      <p className="sub">Телефоны видны только администратору</p>
+      <ul className="list">
         {clients.map((c) => (
-          <li key={c.id} style={{ borderTop: "1px solid #ccc", paddingTop: 8 }}>
-            <strong>{c.name}</strong> · мастер: {c.assignedMaster?.name ?? "—"}
-            <form action={savePhone} style={{ display: "flex", gap: 6 }}>
-              <input type="hidden" name="id" value={c.id} />
-              <input name="phone" defaultValue={c.contact?.phone ?? ""} placeholder="Телефон" />
-              <button type="submit">Сохранить</button>
-            </form>
-            <form action={remove}>
-              <input type="hidden" name="id" value={c.id} />
-              <button type="submit">Удалить клиента и контакты</button>
-            </form>
+          <li key={c.id} className="card">
+            <div className="row">
+              <strong>{c.name}</strong>
+              <span className="muted">мастер: {c.assignedMaster?.name ?? "—"}</span>
+            </div>
+            <div className="inline-form" style={{ marginTop: 10 }}>
+              <form action={savePhone} className="inline-form">
+                <input type="hidden" name="id" value={c.id} />
+                <input name="phone" defaultValue={c.contact?.phone ?? ""} placeholder="Телефон" />
+                <button type="submit" className="ghost">Сохранить</button>
+              </form>
+              <form action={remove}>
+                <input type="hidden" name="id" value={c.id} />
+                <button type="submit" className="danger">Удалить клиента и контакты</button>
+              </form>
+            </div>
           </li>
         ))}
       </ul>
       <h2>Добавить клиента</h2>
-      <form action={add} style={{ display: "grid", gap: 8 }}>
+      <form action={add} className="stack">
         <input name="name" placeholder="Имя" required />
         <input name="phone" placeholder="Телефон (необязательно)" />
         <select name="masterId" required defaultValue="">
@@ -73,9 +79,9 @@ export default async function ClientsPage() {
             <option key={m.id} value={m.id}>{m.name}</option>
           ))}
         </select>
-        <small>Сохраняя телефон, вы подтверждаете, что клиент согласен на хранение своих данных.</small>
+        <small className="muted">Сохраняя телефон, вы подтверждаете, что клиент согласен на хранение своих данных.</small>
         <button type="submit">Добавить</button>
       </form>
-    </main>
+    </>
   );
 }
