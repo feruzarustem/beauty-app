@@ -1,4 +1,4 @@
-import type { Role, User } from "@prisma/client";
+import type { MasterCategory, Role, User } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { hashPassword } from "@/lib/auth/password";
 import { requireRole } from "@/lib/auth/guard";
@@ -6,7 +6,7 @@ import { ValidationError } from "@/lib/errors";
 
 export async function createUser(
   actor: User,
-  input: { name: string; login: string; password: string; role: Role },
+  input: { name: string; login: string; password: string; role: Role; category?: MasterCategory },
 ): Promise<User> {
   requireRole(actor, "admin");
   const name = input.name.trim();
@@ -16,7 +16,7 @@ export async function createUser(
   if (input.password.length < 8) throw new ValidationError("Пароль должен быть не короче 8 символов");
   if (await prisma.user.findUnique({ where: { login } })) throw new ValidationError("Такой логин уже занят");
   return prisma.user.create({
-    data: { name, login, passwordHash: await hashPassword(input.password), role: input.role },
+    data: { name, login, passwordHash: await hashPassword(input.password), role: input.role, category: input.role === "master" ? input.category : undefined },
   });
 }
 

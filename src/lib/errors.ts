@@ -34,3 +34,11 @@ export class PeriodPaidError extends Error {
     this.name = "PeriodPaidError";
   }
 }
+
+/** День закрыт: финансовые данные зафиксированы, изменения только после повторного открытия дня. */
+export class DayClosedError extends Error {
+  constructor(message = "День закрыт. Чтобы изменить данные, администратор должен открыть день заново с указанием причины.") {
+    super(message);
+    this.name = "DayClosedError";
+  }
+}

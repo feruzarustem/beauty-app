@@ -5,6 +5,8 @@ import { NotFoundError, PeriodPaidError, ValidationError } from "@/lib/errors";
 import { masterShare, parseAmount } from "@/lib/money";
 import { periodFor, type Period } from "@/lib/periods";
 import { getMasterSharePercent } from "./settings";
+import { audit } from "./audit";
+import { assertDayOpen } from "./guards";
 import { toDate } from "./visits";
 
 export type PayrollLine = {
@@ -19,7 +21,7 @@ export type PayrollLine = {
   status: "pending" | "paid";
 };
 
-function assertPeriod(p: Period): { start: Date; end: Date } {
+export function assertPeriod(p: Period): { start: Date; end: Date } {
   const expected = periodFor(p.start);
   if (expected.start !== p.start || expected.end !== p.end) {
     throw new ValidationError("Период должен быть 1–15 или 16–конец месяца");
@@ -28,7 +30,7 @@ function assertPeriod(p: Period): { start: Date; end: Date } {
 }
 
 /** Доля мастера: сумма долей по каждому визиту (округление вниз у каждого). */
-function figures(amounts: number[], percent: number) {
+export function figures(amounts: number[], percent: number) {
   return {
     visitCount: amounts.length,
     revenue: amounts.reduce((s, a) => s + a, 0),
@@ -41,7 +43,7 @@ export async function computePayroll(actor: User, period: Period): Promise<Payro
   const { start, end } = assertPeriod(period);
   const percent = await getMasterSharePercent();
   const visits = await prisma.visit.findMany({
-    where: { visitDate: { gte: start, lte: end } },
+    where: { visitDate: { gte: start, lte: end }, status: "done" },
     select: { masterId: true, amount: true },
   });
   const payouts = await prisma.payout.findMany({ where: { periodStart: start, periodEnd: end } });
@@ -73,7 +75,7 @@ export async function computePayroll(actor: User, period: Period): Promise<Payro
 async function liveCalculated(masterId: string, start: Date, end: Date): Promise<number> {
   const percent = await getMasterSharePercent();
   const visits = await prisma.visit.findMany({
-    where: { masterId, visitDate: { gte: start, lte: end } },
+    where: { masterId, visitDate: { gte: start, lte: end }, status: "done" },
     select: { amount: true },
   });
   return figures(visits.map((v) => v.amount), percent).calculated;
@@ -105,6 +107,7 @@ export async function markPaid(actor: User, masterId: string, period: Period): P
     update: data,
     create: { masterId, periodStart: start, periodEnd: end, adjustmentAmount: 0, ...data },
   });
+  await audit(actor, "payout.paid", "Payout", masterId, `${period.start}–${period.end}: ${data.finalAmount}`);
 }
 
 export async function adjustPayout(
@@ -140,6 +143,7 @@ export async function adjustPayout(
       status: "pending",
     },
   });
+  await audit(actor, "payout.adjust", "Payout", masterId, `${period.start}–${period.end}: ${adjustment} (${clean})`);
 }
 
 export async function adjustVisitAmount(
@@ -159,10 +163,12 @@ export async function adjustVisitAmount(
     where: { masterId: visit.masterId, periodStart: toDate(p.start), periodEnd: toDate(p.end), status: "paid" },
   });
   if (paid) throw new PeriodPaidError();
+  await assertDayOpen(visit.visitDate.toISOString().slice(0, 10));
   await prisma.$transaction([
     prisma.visitAdjustment.create({
       data: { visitId, oldAmount: visit.amount, newAmount: amount, reason: clean, changedById: actor.id },
     }),
     prisma.visit.update({ where: { id: visitId }, data: { amount } }),
   ]);
+  await audit(actor, "visit.adjust", "Visit", visitId, `${visit.amount} → ${amount}: ${clean}`);
 }

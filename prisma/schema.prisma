@@ -12,9 +12,29 @@ enum Role {
   master
 }
 
+enum MasterCategory {
+  lash
+  nail
+  lami_brow
+  hair
+}
+
+enum ServiceKind {
+  main
+  addon
+  option
+}
+
 enum PaymentMethod {
   cash
+  kaspi
   transfer
+}
+
+enum VisitStatus {
+  scheduled
+  done
+  cancelled
 }
 
 enum PayoutStatus {
@@ -29,6 +49,7 @@ model User {
   passwordHash String
   role         Role
   active       Boolean @default(true)
+  category     MasterCategory?
 
   clients     Client[]
   visits      Visit[]  @relation("VisitMaster")
@@ -65,9 +86,17 @@ model Visit {
   createdById   String
   createdBy     User          @relation("VisitCreator", fields: [createdById], references: [id])
   createdAt     DateTime      @default(now())
+  // Расписание и визиты — одна таблица. Старые визиты (без времени) считаются выполненными.
+  startTime       String?
+  status          VisitStatus   @default(done)
+  completedAt     DateTime?
+  completedById   String?
+  cancelledReason String?
   adjustments   VisitAdjustment[]
+  items         VisitItem[]
 
   @@index([visitDate, masterId])
+  @@index([visitDate, status])
 }
 
 model VisitAdjustment {
@@ -90,6 +119,43 @@ model DayClosing {
   closedById   String
   closedAt     DateTime @default(now())
   comment      String?
+  // Зафиксированные при закрытии показатели (из выполненных визитов дня)
+  visitCount    Int      @default(0)
+  revenue       Int      @default(0)
+  mastersTotal  Int      @default(0)
+  salonShare    Int      @default(0)
+  cashTotal     Int      @default(0)
+  kaspiTotal    Int      @default(0)
+  transferTotal Int      @default(0)
+  isClosed      Boolean  @default(true)
+  reopenedAt    DateTime?
+  reopenedById  String?
+  reopenReason  String?
+}
+
+/// Выходной мастера. Выходной одного мастера не влияет на остальных.
+model DayOff {
+  id          String   @id @default(cuid())
+  masterId    String
+  date        DateTime @db.Date
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@unique([masterId, date])
+  @@index([date])
+}
+
+/// Журнал аудита: кто, что и когда изменил.
+model AuditLog {
+  id       String   @id @default(cuid())
+  at       DateTime @default(now())
+  actorId  String
+  action   String
+  entity   String
+  entityId String?
+  details  String?
+
+  @@index([at])
 }
 
 model Payout {
@@ -112,4 +178,36 @@ model Payout {
 model Setting {
   key   String @id
   value String
+}
+
+model Service {
+  id        String         @id @default(cuid())
+  category  MasterCategory
+  groupName String
+  name      String
+  priceMin  Int
+  priceMax  Int?
+  openEnded Boolean        @default(false)
+  details   String?
+  sortOrder Int            @default(0)
+  kind      ServiceKind    @default(main)
+
+  @@unique([category, groupName, name])
+}
+
+/// Позиция визита: снимок услуги на момент записи. Visit.amount = сумма price всех позиций.
+model VisitItem {
+  id             String      @id @default(cuid())
+  visitId        String
+  visit          Visit       @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  serviceId      String?
+  name           String
+  kind           ServiceKind
+  priceMin       Int
+  price          Int
+  belowMinReason String?
+  setById        String
+  createdAt      DateTime    @default(now())
+
+  @@index([visitId])
 }

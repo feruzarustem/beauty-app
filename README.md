@@ -1,36 +1,96 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LASH GOLDEN — CRM салона красоты
 
-## Getting Started
+Веб-приложение для небольшого салона: запись клиентов и расписание мастеров, услуги и прайс, учёт оплаты, автоматический расчёт зарплаты (50/50), ежедневное закрытие дня и отчёты за периоды.
 
-First, run the development server:
+Документы проекта: [`docs/product-brief.md`](docs/product-brief.md) (продуктовый бриф), [`docs/decisions.md`](docs/decisions.md) (принятые решения), [`docs/superpowers/`](docs/superpowers/) (спецификация и план MVP).
+
+## Технологии
+
+Next.js 16 (App Router, TypeScript), PostgreSQL + Prisma 6, Vitest, сессии на `jose` (JWT в httpOnly-cookie), пароли через `bcryptjs`. Часовой пояс бизнеса: Asia/Almaty.
+
+## Роли
+
+- **Администратор** — полный доступ: записи, цены, оплата, клиенты и телефоны, выходные мастеров, закрытие дня, отчёты, журнал изменений.
+- **Мастер** — только своё: расписание на неделю, свои визиты и заработок, кнопка «Выполнено». Не видит телефоны клиентов, чужие записи, не вводит и не меняет суммы.
+
+Права проверяются на сервере (слой `src/lib/access/master.ts`, `src/lib/api/guard.ts`), а не только в интерфейсе; это покрыто тестами.
+
+## Первый запуск (с нуля)
+
+Нужны Node.js 20+ и npm.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/feruzarustem/beauty-app.git
+cd beauty-app
+npm install
+
+# 1. Настройки. Секрет сессии — длинная случайная строка (минимум 32 символа):
+cp .env.example .env
+#   откройте .env и задайте SESSION_SECRET, например результатом: openssl rand -base64 48
+
+# 2. Локальная база PostgreSQL (порт 5433). Оставьте этот терминал открытым:
+npm run db
+
+# 3. В другом терминале: таблицы и первый администратор
+npx prisma migrate deploy
+ADMIN_LOGIN=owner ADMIN_NAME="Имя" ADMIN_PASSWORD='ваш-длинный-пароль-от-12-символов' \
+  npx tsx --env-file=.env scripts/create-admin.ts
+
+# 4. Прайс-лист и мастера
+npx tsx --env-file=.env scripts/seed-services.ts
+SEED_PASSWORD='временный-пароль-мастеров' npx tsx --env-file=.env scripts/seed-staff.ts
+
+# 5. Запуск сайта
+npm run dev        # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Необязательно, для показа на выдуманных данных: `npx tsx --env-file=.env scripts/seed-demo-schedule.ts` (демо-расписание).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Скрипты `seed-services` и `seed-staff` безопасно запускать повторно: они обновляют существующие записи, а не дублируют.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Шрифты бренда
 
-## Learn More
+- **Sloop Script Three** и **Stolzl Light** — фирменные шрифты. Из-за неизвестной лицензии файлы **не хранятся в git** (папка `public/fonts/` в `.gitignore`).
+- Положите файлы в `public/fonts/`: `SloopScriptThree.ttf`, `Stolzl-Light.woff2` (или `.otf`). Без них сайт работает, но показывает запасной шрифт.
+- Подключение описано в `src/app/globals.css` (`@font-face`).
 
-To learn more about Next.js, take a look at the following resources:
+## Проверки
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run test:db    # применить миграции к тестовой базе (нужен запущенный npm run db)
+npm test           # все автоматические тесты
+npx tsc --noEmit   # проверка типов
+npm run lint       # проверка стиля кода
+npm run build      # production-сборка
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Структура
 
-## Deploy on Vercel
+| Путь | Что там |
+|---|---|
+| `prisma/schema.prisma`, `prisma/migrations/` | схема базы и история изменений |
+| `src/lib/services/` | бизнес-логика (визиты, зарплата, закрытие дня, отчёты, выходные, аудит) |
+| `src/lib/access/master.ts` | единственный слой данных для роли «мастер» |
+| `src/app/admin/`, `src/app/master/` | экраны |
+| `src/app/api/` | защищённые запросы к серверу |
+| `scripts/` | создание администратора, загрузка прайса и мастеров, локальная база |
+| `tests/` | автоматические тесты (права, деньги, закрытие дня, расписание) |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Безопасность и данные
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- В репозитории нет паролей, ключей и `.env`. Секреты задаются только через переменные окружения.
+- Тесты и демо используют выдуманные данные. Пароль `postgres` и секрет сессии в тестах — только для локальной разработки.
+- **До ввода реальных данных клиентов обязательно:** хостинг в Казахстане с автоматическими резервными копиями (с проверкой восстановления), юридическая проверка по законодательству о персональных данных, защита входа от подбора пароля.
+- Персональные данные клиентов не передаются во внешние ИИ-сервисы.
+
+## Восстановление рабочей версии
+
+Каждое сохранение — коммит в git. Чтобы вернуться к рабочей версии:
+
+```bash
+git fetch --all --tags
+git checkout <метка-или-коммит>      # посмотреть версию (не меняет ничего на GitHub)
+npm install && npm test && npm run build
+```
+
+Метка финальной версии указана в списке тегов репозитория (`git tag`). Базу данных (`.pgdata/`) git не хранит: для демо она восстанавливается шагами «Первый запуск».

@@ -51,41 +51,57 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
   const prev = shiftPeriod(period, -1);
   const next = shiftPeriod(period, 1);
   return (
-    <main style={{ maxWidth: 520, margin: "0 auto", padding: 16 }}>
-      <p><Link href="/admin">← Главная</Link></p>
+    <>
       <h1>Зарплата</h1>
-      <p style={{ display: "flex", gap: 12, alignItems: "center" }}>
-        <Link href={`/admin/payroll?p=${prev.start}`}>←</Link>
+      <div className="period">
+        <Link href={`/admin/payroll?p=${prev.start}`} aria-label="Предыдущий период">←</Link>
         <strong>{period.start} — {period.end}</strong>
-        <Link href={`/admin/payroll?p=${next.start}`}>→</Link>
-      </p>
-      {sp.error && <p role="alert">{sp.error}</p>}
-      <p>Выручка: {fmt(totals.revenue)} · К выплате мастерам: <strong>{fmt(totals.final)}</strong></p>
-      <ul style={{ padding: 0, listStyle: "none", display: "grid", gap: 16 }}>
+        <Link href={`/admin/payroll?p=${next.start}`} aria-label="Следующий период">→</Link>
+      </div>
+      {sp.error && <p role="alert" className="alert">{sp.error}</p>}
+      <div className="stats">
+        <div className="card stat">
+          <div className="label">Выручка</div>
+          <div className="value">{fmt(totals.revenue)}</div>
+        </div>
+        <div className="card stat">
+          <div className="label">К выплате мастерам</div>
+          <div className="value">{fmt(totals.final)}</div>
+        </div>
+      </div>
+      <ul className="list">
         {lines.map((l) => (
-          <li key={l.masterId} style={{ borderTop: "1px solid #ccc", paddingTop: 8 }}>
-            <strong>{l.masterName}</strong> — {l.status === "paid" ? "выплачено" : "ожидает выплаты"}
-            <div>Визитов: {l.visitCount} · Выручка: {fmt(l.revenue)}</div>
+          <li key={l.masterId} className="card">
+            <div className="row">
+              <strong><Link href={`/admin/masters/${l.masterId}?p=${period.start}`}>{l.masterName}</Link></strong>
+              <span className={l.status === "paid" ? "pill paid" : "pill"}>
+                {l.status === "paid" ? "выплачено" : "ожидает выплаты"}
+              </span>
+            </div>
+            <hr className="divider" />
+            <div className="muted">Визитов: {l.visitCount} · Выручка: {fmt(l.revenue)}</div>
             <div>Начислено (50%): {fmt(l.calculated)}</div>
             {l.adjustment !== 0 && <div>Корректировка: {fmt(l.adjustment)} ({l.adjustmentReason})</div>}
             <div>К выплате: <strong>{fmt(l.final)}</strong></div>
-            {l.status === "pending" && (
-              <form action={payAction}>
+            <div className="inline-form" style={{ marginTop: 12 }}>
+              {l.status === "pending" && (
+                <form action={payAction}>
+                  <input type="hidden" name="masterId" value={l.masterId} />
+                  <input type="hidden" name="start" value={period.start} />
+                  <button type="submit">Выплачено</button>
+                </form>
+              )}
+              <form action={adjustAction} className="inline-form">
                 <input type="hidden" name="masterId" value={l.masterId} />
                 <input type="hidden" name="start" value={period.start} />
-                <button type="submit">Выплачено</button>
+                <input name="adjustment" inputMode="numeric" placeholder="± сумма" required style={{ width: 100 }} />
+                <input name="reason" placeholder="Причина" required />
+                <button type="submit" className="ghost">Корректировка</button>
               </form>
-            )}
-            <form action={adjustAction} style={{ display: "flex", gap: 6, marginTop: 6 }}>
-              <input type="hidden" name="masterId" value={l.masterId} />
-              <input type="hidden" name="start" value={period.start} />
-              <input name="adjustment" inputMode="numeric" placeholder="± сумма" required style={{ width: 90 }} />
-              <input name="reason" placeholder="Причина" required />
-              <button type="submit">Корректировка</button>
-            </form>
+            </div>
           </li>
         ))}
       </ul>
-    </main>
+    </>
   );
 }
