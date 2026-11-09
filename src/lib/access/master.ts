@@ -102,3 +102,46 @@ function rangeDates(range: Period): { start: Date; end: Date } {
   }
   return { start: new Date(`${range.start}T00:00:00.000Z`), end: new Date(`${range.end}T00:00:00.000Z`) };
 }
+
+export type MasterScheduleItem = {
+  id: string;
+  time: string;
+  clientName: string | null;
+  services: string[];
+  status: "scheduled" | "done" | "cancelled";
+};
+export type MasterScheduleDay = { date: string; dayOff: boolean; items: MasterScheduleItem[]; freeHours: number[] };
+
+const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+
+/**
+ * Личное расписание мастера на N дней (до 14) вперёд от даты. Только её записи, без сумм и без контактов.
+ * Свободные часы: рабочие часы салона 08:00–20:00, в которых у неё не начинается ни одна запись.
+ */
+export async function masterSchedule(actor: User, fromIso: string, days: number): Promise<MasterScheduleDay[]> {
+  requireRole(actor, "master");
+  if (!Number.isInteger(days) || days < 1 || days > 14) throw new ValidationError("Можно смотреть расписание не более чем на 14 дней");
+  const start = new Date(`${fromIso}T00:00:00.000Z`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fromIso) || Number.isNaN(start.getTime())) throw new ValidationError("Неверная дата");
+  const toIso = addDays(fromIso, days - 1);
+  const range = { gte: start, lte: new Date(`${toIso}T00:00:00.000Z`) };
+  const [rows, off] = await Promise.all([
+    prisma.visit.findMany({
+      where: { masterId: actor.id, visitDate: range, status: { in: ["scheduled", "done", "cancelled"] }, startTime: { not: null } },
+      select: { id: true, visitDate: true, startTime: true, status: true, client: { select: { name: true } }, items: { select: { name: true } } },
+      orderBy: [{ startTime: "asc" }, { createdAt: "asc" }],
+    }),
+    prisma.dayOff.findMany({ where: { masterId: actor.id, date: range }, select: { date: true } }),
+  ]);
+  const offSet = new Set(off.map((d) => d.date.toISOString().slice(0, 10)));
+  return Array.from({ length: days }, (_, i) => {
+    const date = addDays(fromIso, i);
+    const items = rows
+      .filter((r) => r.visitDate.toISOString().slice(0, 10) === date)
+      .map((r) => ({ id: r.id, time: r.startTime as string, clientName: r.client?.name ?? null, services: r.items.map((x) => x.name), status: r.status }));
+    const dayOff = offSet.has(date);
+    const busy = new Set(items.filter((x) => x.status !== "cancelled").map((x) => Number(x.time.slice(0, 2))));
+    const freeHours = dayOff ? [] : Array.from({ length: 12 }, (_, h) => h + 8).filter((h) => !busy.has(h));
+    return { date, dayOff, items, freeHours };
+  });
+}
