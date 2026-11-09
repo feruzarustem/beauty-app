@@ -121,3 +121,17 @@ model Setting {
   key   String @id
   value String
 }
+
+model Service {
+  id        String         @id @default(cuid())
+  category  MasterCategory
+  groupName String
+  name      String
+  priceMin  Int
+  priceMax  Int?
+  openEnded Boolean        @default(false)
+  details   String?
+  sortOrder Int            @default(0)
+
+  @@unique([category, groupName, name])
+}

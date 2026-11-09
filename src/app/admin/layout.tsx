@@ -5,6 +5,7 @@ const ITEMS = [
   { href: "/admin", label: "Главная" },
   { href: "/admin/visits/new", label: "Новый визит" },
   { href: "/admin/masters", label: "Мастера" },
+  { href: "/admin/services", label: "Услуги" },
   { href: "/admin/payroll", label: "Зарплата" },
   { href: "/admin/clients", label: "Клиенты" },
   { href: "/admin/staff", label: "Сотрудники" },
