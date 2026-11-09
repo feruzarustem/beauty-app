@@ -19,6 +19,7 @@ export default async function AdminHome() {
       <nav style={{ display: "flex", gap: 12, flexWrap: "wrap", margin: "12px 0" }}>
         <Link href="/admin/visits/new">+ Добавить визит</Link>
         <Link href="/admin/payroll">Зарплата</Link>
+        <Link href="/admin/clients">Клиенты</Link>
         <Link href="/admin/staff">Сотрудники</Link>
       </nav>
       <ul style={{ padding: 0, listStyle: "none", display: "grid", gap: 8 }}>
