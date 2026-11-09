@@ -1,7 +1,10 @@
-import type { PaymentMethod, ServiceKind, User } from "@prisma/client";
+import type { PaymentMethod, ServiceKind, User, VisitStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth/guard";
 import { DuplicateWarning, PeriodPaidError, ValidationError } from "@/lib/errors";
+import { PAYMENT_METHODS } from "@/lib/payment";
+import { audit } from "./audit";
+import { assertDayOpen, assertNotDayOff, assertWorkingTime } from "./guards";
 import { periodFor } from "@/lib/periods";
 import { masterShare, parseAmount } from "@/lib/money";
 import { getMasterSharePercent } from "./settings";
@@ -33,29 +36,31 @@ export type VisitInput = {
   amount: unknown;
   paymentMethod: PaymentMethod;
   confirmDuplicate?: boolean;
+  status?: Extract<VisitStatus, "done" | "scheduled">;
+  startTime?: string;
 };
 
-type ItemData = { serviceId: string; name: string; kind: ServiceKind; priceMin: number; price: number; belowMinReason: string | null; setById: string };
+export type ItemData = { serviceId: string; name: string; kind: ServiceKind; priceMin: number; price: number; belowMinReason: string | null; setById: string };
 
 export async function createVisit(actor: User, input: VisitInput): Promise<{ id: string }> {
   requireRole(actor, "admin");
   return recordVisit(actor, input);
 }
 
-/** Запись визита из нескольких услуг. Сумма визита = сумма цен платных позиций, её считает сервер. */
-export async function createVisitWithItems(
+/** Проверяет выбор услуг и цены. Сумма = сумма цен платных позиций, её считает сервер. */
+export async function buildItems(
   actor: User,
-  input: Omit<VisitInput, "amount"> & { items: { serviceId: string; price: unknown; belowMinReason?: string }[] },
-): Promise<{ id: string }> {
-  requireRole(actor, "admin");
-  if (!Array.isArray(input.items) || input.items.length === 0) throw new ValidationError("Выберите хотя бы одну услугу");
-  const ids = input.items.map((i) => i.serviceId);
+  masterId: string,
+  rawItems: { serviceId: string; price: unknown; belowMinReason?: string }[],
+): Promise<{ items: ItemData[]; total: number }> {
+  if (!Array.isArray(rawItems) || rawItems.length === 0) throw new ValidationError("Выберите хотя бы одну услугу");
+  const ids = rawItems.map((i) => i.serviceId);
   if (new Set(ids).size !== ids.length) throw new ValidationError("Услуга выбрана дважды");
-  const master = await prisma.user.findUnique({ where: { id: input.masterId } });
+  const master = await prisma.user.findUnique({ where: { id: masterId } });
   if (!master || master.role !== "master" || !master.active) throw new ValidationError("Мастер не найден или отключён");
   if (!master.category) throw new ValidationError("У мастера не указано направление");
   const services = await prisma.service.findMany({ where: { id: { in: ids } } });
-  const items: ItemData[] = input.items.map((i) => {
+  const items: ItemData[] = rawItems.map((i) => {
     const s = services.find((x) => x.id === i.serviceId);
     if (!s) throw new ValidationError("Услуга не найдена");
     if (s.category !== master.category) throw new ValidationError(`Услуга «${s.name}» не из прайса этого мастера`);
@@ -75,7 +80,16 @@ export async function createVisitWithItems(
     }
     return { serviceId: s.id, name: s.name, kind: s.kind, priceMin: s.priceMin, price, belowMinReason: reason || null, setById: actor.id };
   });
-  const total = items.reduce((sum, i) => sum + i.price, 0);
+  return { items, total: items.reduce((sum, i) => sum + i.price, 0) };
+}
+
+/** Запись визита или записи на будущее из нескольких услуг (только администратор). */
+export async function createVisitWithItems(
+  actor: User,
+  input: Omit<VisitInput, "amount"> & { items: { serviceId: string; price: unknown; belowMinReason?: string }[] },
+): Promise<{ id: string }> {
+  requireRole(actor, "admin");
+  const { items, total } = await buildItems(actor, input.masterId, input.items);
   return recordVisit(actor, { ...input, amount: total }, items);
 }
 
@@ -83,15 +97,17 @@ export async function createVisitWithItems(
 async function recordVisit(actor: User, input: VisitInput, items?: ItemData[]): Promise<{ id: string }> {
   const visitDate = toDate(input.visitDate);
   const amount = parseAmount(input.amount);
-  if (input.paymentMethod !== "cash" && input.paymentMethod !== "transfer") {
-    throw new ValidationError("Выберите способ оплаты");
-  }
+  if (!PAYMENT_METHODS.includes(input.paymentMethod)) throw new ValidationError("Выберите способ оплаты");
+  const status = input.status ?? "done";
+  const startTime = status === "scheduled" || input.startTime ? assertWorkingTime(input.startTime) : null;
+  await assertDayOpen(input.visitDate);
   const master = await prisma.user.findUnique({ where: { id: input.masterId } });
   if (!master || master.role !== "master" || !master.active) {
     throw new ValidationError("Мастер не найден или отключён");
   }
   const client = await prisma.client.findUnique({ where: { id: input.clientId } });
   if (!client) throw new ValidationError("Клиент не найден");
+  if (status === "scheduled") await assertNotDayOff(master.id, input.visitDate);
 
   const period = periodFor(input.visitDate);
   const paid = await prisma.payout.findFirst({
@@ -105,6 +121,8 @@ async function recordVisit(actor: User, input: VisitInput, items?: ItemData[]): 
         masterId: master.id,
         clientId: client.id,
         amount,
+        visitDate,
+        status: { not: "cancelled" },
         createdAt: { gte: new Date(Date.now() - DUPLICATE_WINDOW_MS) },
       },
     });
@@ -119,9 +137,12 @@ async function recordVisit(actor: User, input: VisitInput, items?: ItemData[]): 
       amount,
       paymentMethod: input.paymentMethod,
       createdById: actor.id,
+      status,
+      startTime,
       ...(items ? { items: { create: items } } : {}),
     },
   });
+  await audit(actor, status === "scheduled" ? "visit.schedule" : "visit.create", "Visit", v.id, `${input.visitDate} ${startTime ?? ""} сумма ${amount}`.trim());
   return { id: v.id };
 }
 
@@ -129,7 +150,7 @@ export async function listVisitsForDay(actor: User, isoDate: string): Promise<Ad
   requireRole(actor, "admin");
   const percent = await getMasterSharePercent();
   const rows = await prisma.visit.findMany({
-    where: { visitDate: toDate(isoDate) },
+    where: { visitDate: toDate(isoDate), status: "done" },
     include: { master: { select: { name: true } }, client: { select: { name: true } } },
     orderBy: { createdAt: "asc" },
   });

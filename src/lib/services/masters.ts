@@ -46,7 +46,7 @@ export async function getMasterProfile(actor: User, masterId: string, period: Pe
   const lines = await computePayroll(actor, period);
   const line = lines.find((l) => l.masterId === master.id);
   const visits = await prisma.visit.findMany({
-    where: { masterId: master.id, visitDate: { gte: toDate(period.start), lte: toDate(period.end) } },
+    where: { masterId: master.id, status: "done", visitDate: { gte: toDate(period.start), lte: toDate(period.end) } },
     select: { id: true, visitDate: true, amount: true, client: { select: { name: true } } },
     orderBy: { visitDate: "desc" },
   });

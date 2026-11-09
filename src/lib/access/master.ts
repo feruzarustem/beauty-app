@@ -60,7 +60,7 @@ export async function masterVisits(actor: User, range: Period): Promise<MasterVi
   const { start, end } = rangeDates(range);
   const percent = await getMasterSharePercent();
   const rows = await prisma.visit.findMany({
-    where: { masterId: actor.id, visitDate: { gte: start, lte: end } },
+    where: { masterId: actor.id, visitDate: { gte: start, lte: end }, status: "done" },
     select: visitSelect,
     orderBy: [{ visitDate: "asc" }, { createdAt: "asc" }],
   });
@@ -71,7 +71,7 @@ export async function masterVisits(actor: User, range: Period): Promise<MasterVi
 export async function masterVisit(actor: User, visitId: string): Promise<MasterVisitDto> {
   requireRole(actor, "master");
   const v = await prisma.visit.findFirst({
-    where: { id: visitId, masterId: actor.id },
+    where: { id: visitId, masterId: actor.id, status: "done" },
     select: visitSelect,
   });
   if (!v) throw new NotFoundError();
@@ -83,7 +83,7 @@ export async function masterEarnings(actor: User, period: Period): Promise<Maste
   const { start, end } = assertPeriod(period);
   const percent = await getMasterSharePercent();
   const visits = await prisma.visit.findMany({
-    where: { masterId: actor.id, visitDate: { gte: start, lte: end } },
+    where: { masterId: actor.id, visitDate: { gte: start, lte: end }, status: "done" },
     select: { amount: true },
   });
   const payout = await prisma.payout.findUnique({
