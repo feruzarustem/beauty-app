@@ -22,3 +22,13 @@ export function todayInBusinessTz(now: Date): string {
     day: "2-digit",
   }).format(now);
 }
+
+/** Соседний период: direction 1 — следующий, -1 — предыдущий. */
+export function shiftPeriod(p: Period, direction: 1 | -1): Period {
+  const [y, m] = p.start.split("-").map(Number);
+  const firstHalf = p.start.endsWith("-01");
+  if (direction === 1) {
+    return firstHalf ? periodFor(`${p.start.slice(0, 7)}-16`) : periodFor(new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10));
+  }
+  return firstHalf ? periodFor(new Date(Date.UTC(y, m - 2, 16)).toISOString().slice(0, 10)) : periodFor(`${p.start.slice(0, 7)}-01`);
+}

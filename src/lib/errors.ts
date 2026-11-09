@@ -26,3 +26,11 @@ export class DuplicateWarning extends Error {
     this.name = "DuplicateWarning";
   }
 }
+
+/** Период уже выплачен: прямое изменение визитов запрещено. */
+export class PeriodPaidError extends Error {
+  constructor(message = "Период уже выплачен. Используйте корректировку выплаты с указанием причины.") {
+    super(message);
+    this.name = "PeriodPaidError";
+  }
+}

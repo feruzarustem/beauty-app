@@ -1,9 +1,6 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
-};
+// Приложение полностью динамическое и закрыто входом: кэширование страниц (cacheComponents) не нужно.
+const nextConfig: NextConfig = {};
 
 export default nextConfig;
