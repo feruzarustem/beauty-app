@@ -19,7 +19,7 @@ export type PayrollLine = {
   status: "pending" | "paid";
 };
 
-function assertPeriod(p: Period): { start: Date; end: Date } {
+export function assertPeriod(p: Period): { start: Date; end: Date } {
   const expected = periodFor(p.start);
   if (expected.start !== p.start || expected.end !== p.end) {
     throw new ValidationError("Период должен быть 1–15 или 16–конец месяца");
@@ -28,7 +28,7 @@ function assertPeriod(p: Period): { start: Date; end: Date } {
 }
 
 /** Доля мастера: сумма долей по каждому визиту (округление вниз у каждого). */
-function figures(amounts: number[], percent: number) {
+export function figures(amounts: number[], percent: number) {
   return {
     visitCount: amounts.length,
     revenue: amounts.reduce((s, a) => s + a, 0),
