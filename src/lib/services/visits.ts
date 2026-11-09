@@ -19,6 +19,7 @@ export type AdminVisitDto = {
   amount: number;
   masterShare: number;
   paymentMethod: PaymentMethod;
+  createdByMaster: boolean;
 };
 
 export function toDate(iso: string): Date {
@@ -26,18 +27,22 @@ export function toDate(iso: string): Date {
   return new Date(`${iso}T00:00:00.000Z`);
 }
 
-export async function createVisit(
-  actor: User,
-  input: {
-    visitDate: string;
-    masterId: string;
-    clientId: string;
-    amount: unknown;
-    paymentMethod: PaymentMethod;
-    confirmDuplicate?: boolean;
-  },
-): Promise<{ id: string }> {
+export type VisitInput = {
+  visitDate: string;
+  masterId: string;
+  clientId: string;
+  amount: unknown;
+  paymentMethod: PaymentMethod;
+  confirmDuplicate?: boolean;
+};
+
+export async function createVisit(actor: User, input: VisitInput): Promise<{ id: string }> {
   requireRole(actor, "admin");
+  return recordVisit(actor, input);
+}
+
+/** Общая запись визита (все проверки: сумма, период, дубль). Права проверяет вызывающий. */
+export async function recordVisit(actor: User, input: VisitInput): Promise<{ id: string }> {
   const visitDate = toDate(input.visitDate);
   const amount = parseAmount(input.amount);
   if (input.paymentMethod !== "cash" && input.paymentMethod !== "transfer") {
@@ -86,7 +91,11 @@ export async function listVisitsForDay(actor: User, isoDate: string): Promise<Ad
   const percent = await getMasterSharePercent();
   const rows = await prisma.visit.findMany({
     where: { visitDate: toDate(isoDate) },
-    include: { master: { select: { name: true } }, client: { select: { name: true } } },
+    include: {
+      master: { select: { name: true } },
+      client: { select: { name: true } },
+      createdBy: { select: { role: true } },
+    },
     orderBy: { createdAt: "asc" },
   });
   return rows.map((v) => ({
@@ -99,5 +108,6 @@ export async function listVisitsForDay(actor: User, isoDate: string): Promise<Ad
     amount: v.amount,
     masterShare: masterShare(v.amount, percent),
     paymentMethod: v.paymentMethod,
+    createdByMaster: v.createdBy.role === "master",
   }));
 }

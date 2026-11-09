@@ -7,6 +7,9 @@ import { todayInBusinessTz } from "@/lib/periods";
 import { findOrCreateClientByName } from "@/lib/services/clients";
 import { listMasters } from "@/lib/services/users";
 import { createVisit } from "@/lib/services/visits";
+import { listCatalog } from "@/lib/services/catalog";
+import { CATEGORY_INFO } from "@/lib/categories";
+import { ServiceAmount } from "@/components/ServiceAmount";
 
 type SP = { error?: string; dup?: string; masterId?: string; client?: string; amount?: string; method?: string; date?: string };
 
@@ -42,10 +45,14 @@ async function addVisit(formData: FormData) {
 export default async function NewVisitPage({ searchParams }: { searchParams: Promise<SP> }) {
   const admin = await requireUser("admin");
   const sp = await searchParams;
-  const [masters, clients] = await Promise.all([
+  const [masters, clients, catalog] = await Promise.all([
     listMasters(admin),
     prisma.client.findMany({ select: { name: true }, orderBy: { name: "asc" } }),
+    listCatalog(admin),
   ]);
+  const services = catalog.flatMap((c) =>
+    c.groups.flatMap((g) => g.items.map((s) => ({ ...s, label: `${CATEGORY_INFO[c.category].title} · ${g.groupName}` }))),
+  );
   return (
     <>
       <h1>Новый визит</h1>
@@ -69,7 +76,7 @@ export default async function NewVisitPage({ searchParams }: { searchParams: Pro
             <option key={i} value={c.name} />
           ))}
         </datalist>
-        <input name="amount" inputMode="numeric" placeholder="Сумма, ₸" defaultValue={sp.amount ?? ""} required />
+        <ServiceAmount services={services} defaultAmount={sp.amount} />
         <select name="method" defaultValue={sp.method ?? "cash"}>
           <option value="cash">Наличные</option>
           <option value="transfer">Перевод</option>
