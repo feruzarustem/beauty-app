@@ -11,7 +11,7 @@ import {
 } from "@/lib/services/payroll";
 import { resetDb } from "./setup/db";
 
-let admin: User, masterA: User, masterB: User, inactive: User;
+let admin: User, masterA: User, masterB: User;
 const P1 = { start: "2026-03-01", end: "2026-03-15" };
 const P2 = { start: "2026-03-16", end: "2026-03-31" };
 
@@ -36,7 +36,7 @@ beforeEach(async () => {
   admin = await mk("admin", "admin");
   masterA = await mk("masterA", "master");
   masterB = await mk("masterB", "master");
-  inactive = await mk("old", "master", false);
+  await mk("old", "master", false);
 });
 
 describe("computePayroll", () => {

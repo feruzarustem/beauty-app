@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import type { User } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { DuplicateWarning, ForbiddenError, ValidationError } from "@/lib/errors";
+import { DuplicateWarning, ForbiddenError, PeriodPaidError, ValidationError } from "@/lib/errors";
 import { AmountError } from "@/lib/money";
 import { createVisit, listVisitsForDay } from "@/lib/services/visits";
 import { resetDb } from "./setup/db";
@@ -81,5 +81,37 @@ describe("listVisitsForDay", () => {
   });
   test("master cannot list all visits", async () => {
     await expect(listVisitsForDay(masterA, "2026-03-10")).rejects.toThrow(ForbiddenError);
+  });
+});
+
+describe("createVisit in a paid period", () => {
+  test("is rejected for that master, so a paid sum never silently drifts from the visits", async () => {
+    await prisma.payout.create({
+      data: {
+        masterId: masterA.id,
+        periodStart: new Date("2026-03-01T00:00:00.000Z"),
+        periodEnd: new Date("2026-03-15T00:00:00.000Z"),
+        calculatedAmount: 0,
+        finalAmount: 0,
+        status: "paid",
+      },
+    });
+    await expect(createVisit(admin, base())).rejects.toThrow(PeriodPaidError);
+    expect(await prisma.visit.count()).toBe(0);
+  });
+  test("another master or the other half of the month is not blocked", async () => {
+    await prisma.payout.create({
+      data: {
+        masterId: masterA.id,
+        periodStart: new Date("2026-03-01T00:00:00.000Z"),
+        periodEnd: new Date("2026-03-15T00:00:00.000Z"),
+        calculatedAmount: 0,
+        finalAmount: 0,
+        status: "paid",
+      },
+    });
+    await createVisit(admin, { ...base(), masterId: masterB.id });
+    await createVisit(admin, { ...base(), visitDate: "2026-03-16" });
+    expect(await prisma.visit.count()).toBe(2);
   });
 });

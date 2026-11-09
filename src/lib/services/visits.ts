@@ -1,7 +1,8 @@
 import type { PaymentMethod, User } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth/guard";
-import { DuplicateWarning, ValidationError } from "@/lib/errors";
+import { DuplicateWarning, PeriodPaidError, ValidationError } from "@/lib/errors";
+import { periodFor } from "@/lib/periods";
 import { masterShare, parseAmount } from "@/lib/money";
 import { getMasterSharePercent } from "./settings";
 
@@ -48,6 +49,12 @@ export async function createVisit(
   }
   const client = await prisma.client.findUnique({ where: { id: input.clientId } });
   if (!client) throw new ValidationError("Клиент не найден");
+
+  const period = periodFor(input.visitDate);
+  const paid = await prisma.payout.findFirst({
+    where: { masterId: master.id, periodStart: toDate(period.start), periodEnd: toDate(period.end), status: "paid" },
+  });
+  if (paid) throw new PeriodPaidError();
 
   if (!input.confirmDuplicate) {
     const dup = await prisma.visit.findFirst({
