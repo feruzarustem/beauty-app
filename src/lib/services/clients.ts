@@ -30,3 +30,20 @@ export async function searchClients(actor: User, q: string): Promise<AdminClient
   });
   return rows;
 }
+
+/** Быстрый ввод визита: клиент по имени (без учёта регистра) или новый клиент. */
+export async function findOrCreateClientByName(
+  actor: User,
+  name: string,
+  assignedMasterId: string,
+): Promise<{ id: string; name: string }> {
+  requireRole(actor, "admin");
+  const clean = name.trim();
+  if (!clean) throw new ValidationError("Укажите имя клиента");
+  const existing = await prisma.client.findFirst({
+    where: { name: { equals: clean, mode: "insensitive" } },
+    select: { id: true, name: true },
+    orderBy: { createdAt: "asc" },
+  });
+  return existing ?? createClient(actor, { name: clean, assignedMasterId });
+}

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test } from "vitest";
 import type { User } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ForbiddenError, ValidationError } from "@/lib/errors";
-import { createClient, searchClients } from "@/lib/services/clients";
+import { createClient, findOrCreateClientByName, searchClients } from "@/lib/services/clients";
 import { resetDb } from "./setup/db";
 
 let admin: User, master: User, inactive: User;
@@ -44,5 +44,22 @@ describe("searchClients", () => {
   });
   test("master cannot search clients", async () => {
     await expect(searchClients(master, "a")).rejects.toThrow(ForbiddenError);
+  });
+});
+
+describe("findOrCreateClientByName", () => {
+  test("returns the existing client for the same name, any case", async () => {
+    const a = await createClient(admin, { name: "Айгуль Ким", assignedMasterId: master.id });
+    const b = await findOrCreateClientByName(admin, "  айгуль ким ", master.id);
+    expect(b.id).toBe(a.id);
+    expect(await prisma.client.count()).toBe(1);
+  });
+  test("creates a new client when the name is unknown", async () => {
+    const c = await findOrCreateClientByName(admin, "Новая", master.id);
+    expect(c.name).toBe("Новая");
+    expect(await prisma.client.count()).toBe(1);
+  });
+  test("master cannot use it", async () => {
+    await expect(findOrCreateClientByName(master, "X", master.id)).rejects.toThrow(ForbiddenError);
   });
 });

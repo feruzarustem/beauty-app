@@ -18,3 +18,11 @@ export class ValidationError extends Error {
     this.name = "ValidationError";
   }
 }
+
+/** Возможный дубль визита: нужно явное подтверждение. */
+export class DuplicateWarning extends Error {
+  constructor(message = "Похоже, такой визит уже записан. Подтвердите, если это другой визит.") {
+    super(message);
+    this.name = "DuplicateWarning";
+  }
+}
