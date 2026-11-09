@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  master
+}
+
+enum PaymentMethod {
+  cash
+  transfer
+}
+
+enum PayoutStatus {
+  pending
+  paid
+}
+
+model User {
+  id           String  @id @default(cuid())
+  name         String
+  login        String  @unique
+  passwordHash String
+  role         Role
+  active       Boolean @default(true)
+
+  clients     Client[]
+  visits      Visit[]  @relation("VisitMaster")
+  createdVisits Visit[] @relation("VisitCreator")
+  payouts     Payout[] @relation("PayoutMaster")
+}
+
+model Client {
+  id               String  @id @default(cuid())
+  name             String
+  assignedMasterId String?
+  assignedMaster   User?   @relation(fields: [assignedMasterId], references: [id])
+  contact          ClientContact?
+  visits           Visit[]
+  createdAt        DateTime @default(now())
+}
+
+model ClientContact {
+  clientId  String   @id
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  phone     String
+  consentAt DateTime
+}
+
+model Visit {
+  id            String        @id @default(cuid())
+  visitDate     DateTime      @db.Date
+  masterId      String
+  master        User          @relation("VisitMaster", fields: [masterId], references: [id])
+  clientId      String?
+  client        Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  amount        Int
+  paymentMethod PaymentMethod
+  createdById   String
+  createdBy     User          @relation("VisitCreator", fields: [createdById], references: [id])
+  createdAt     DateTime      @default(now())
+  adjustments   VisitAdjustment[]
+
+  @@index([visitDate, masterId])
+}
+
+model VisitAdjustment {
+  id          String   @id @default(cuid())
+  visitId     String
+  visit       Visit    @relation(fields: [visitId], references: [id])
+  oldAmount   Int
+  newAmount   Int
+  reason      String
+  changedById String
+  changedAt   DateTime @default(now())
+}
+
+model DayClosing {
+  id           String   @id @default(cuid())
+  closingDate  DateTime @unique @db.Date
+  expectedCash Int
+  actualCash   Int
+  difference   Int
+  closedById   String
+  closedAt     DateTime @default(now())
+  comment      String?
+}
+
+model Payout {
+  id               String       @id @default(cuid())
+  masterId         String
+  master           User         @relation("PayoutMaster", fields: [masterId], references: [id])
+  periodStart      DateTime     @db.Date
+  periodEnd        DateTime     @db.Date
+  calculatedAmount Int
+  adjustmentAmount Int          @default(0)
+  adjustmentReason String?
+  finalAmount      Int
+  status           PayoutStatus @default(pending)
+  paidAt           DateTime?
+  paidById         String?
+
+  @@unique([masterId, periodStart, periodEnd])
+}
+
+model Setting {
+  key   String @id
+  value String
+}
