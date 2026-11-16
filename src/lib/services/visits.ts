@@ -2,9 +2,11 @@ import type { PaymentMethod, ServiceKind, User, VisitStatus } from "@prisma/clie
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth/guard";
 import { DuplicateWarning, PeriodPaidError, ValidationError } from "@/lib/errors";
-import { PAYMENT_METHODS } from "@/lib/payment";
+import { PAYMENT_METHODS, PREPAY_METHODS } from "@/lib/payment";
+import { PREPAY_AMOUNT } from "@/lib/split";
 import { audit } from "./audit";
-import { assertDayOpen, assertNotDayOff, assertWorkingTime } from "./guards";
+import { assertDayOpen, assertEndsInTime, assertNoOverlap, assertNotDayOff, assertWorkingTime, parseDuration } from "./guards";
+import { splitData } from "./splitStore";
 import { periodFor } from "@/lib/periods";
 import { masterShare, parseAmount } from "@/lib/money";
 import { getMasterSharePercent } from "./settings";
@@ -21,7 +23,11 @@ export type AdminVisitDto = {
   clientName: string | null;
   amount: number;
   masterShare: number;
+  salonShare: number;
   paymentMethod: PaymentMethod;
+  prepaidAmount: number;
+  discountAmount: number;
+  isBlogger: boolean;
 };
 
 export function toDate(iso: string): Date {
@@ -38,6 +44,12 @@ export type VisitInput = {
   confirmDuplicate?: boolean;
   status?: Extract<VisitStatus, "done" | "scheduled">;
   startTime?: string;
+  /** Длительность в минутах (вручную). Обязательна для записи на будущее. */
+  durationMin?: unknown;
+  /** Предоплата 2 000 ₸ получена (отмечает администратор вручную). */
+  prepaid?: boolean;
+  /** Способ предоплаты: только безналичный. По умолчанию перевод. */
+  prepaidMethod?: PaymentMethod;
 };
 
 export type ItemData = { serviceId: string; name: string; kind: ServiceKind; priceMin: number; price: number; belowMinReason: string | null; setById: string };
@@ -100,6 +112,13 @@ async function recordVisit(actor: User, input: VisitInput, items?: ItemData[]): 
   if (!PAYMENT_METHODS.includes(input.paymentMethod)) throw new ValidationError("Выберите способ оплаты");
   const status = input.status ?? "done";
   const startTime = status === "scheduled" || input.startTime ? assertWorkingTime(input.startTime) : null;
+  const hasDuration = input.durationMin !== undefined && input.durationMin !== null && input.durationMin !== "";
+  if (status === "scheduled" && !hasDuration) throw new ValidationError("Укажите длительность записи");
+  const durationMin = hasDuration ? parseDuration(input.durationMin) : null;
+  if (startTime && durationMin) assertEndsInTime(startTime, durationMin);
+  const prepaidAmount = input.prepaid ? PREPAY_AMOUNT : 0;
+  const prepaidMethod = input.prepaid ? (input.prepaidMethod ?? "transfer") : null;
+  if (prepaidMethod && !PREPAY_METHODS.includes(prepaidMethod)) throw new ValidationError("Предоплата принимается только безналичной");
   await assertDayOpen(input.visitDate);
   const master = await prisma.user.findUnique({ where: { id: input.masterId } });
   if (!master || master.role !== "master" || !master.active) {
@@ -108,6 +127,7 @@ async function recordVisit(actor: User, input: VisitInput, items?: ItemData[]): 
   const client = await prisma.client.findUnique({ where: { id: input.clientId } });
   if (!client) throw new ValidationError("Клиент не найден");
   if (status === "scheduled") await assertNotDayOff(master.id, input.visitDate);
+  if (startTime && durationMin) await assertNoOverlap(master.id, input.visitDate, startTime, durationMin);
 
   const period = periodFor(input.visitDate);
   const paid = await prisma.payout.findFirst({
@@ -129,16 +149,22 @@ async function recordVisit(actor: User, input: VisitInput, items?: ItemData[]): 
     if (dup) throw new DuplicateWarning();
   }
 
+  // Выполненная запись сразу получает сохранённые доли; запись на будущее — при закрытии.
+  const money = { listAmount: amount, discountPercent: 0, discountBearer: null, isBlogger: false, prepaidAmount, prepaidMethod };
+  const split = status === "done" ? (await splitData(money, master.category)).data : { amount, listAmount: amount };
   const v = await prisma.visit.create({
     data: {
       visitDate,
       masterId: master.id,
       clientId: client.id,
-      amount,
       paymentMethod: input.paymentMethod,
       createdById: actor.id,
       status,
       startTime,
+      durationMin,
+      prepaidAmount,
+      prepaidMethod,
+      ...(split as { amount: number }),
       ...(items ? { items: { create: items } } : {}),
     },
   });
@@ -162,7 +188,11 @@ export async function listVisitsForDay(actor: User, isoDate: string): Promise<Ad
     clientId: v.clientId,
     clientName: v.client?.name ?? null,
     amount: v.amount,
-    masterShare: masterShare(v.amount, percent),
+    masterShare: v.masterAmount ?? masterShare(v.amount, percent),
+    salonShare: v.salonAmount ?? v.amount - masterShare(v.amount, percent),
     paymentMethod: v.paymentMethod,
+    prepaidAmount: v.prepaidAmount,
+    discountAmount: v.discountAmount,
+    isBlogger: v.isBlogger,
   }));
 }

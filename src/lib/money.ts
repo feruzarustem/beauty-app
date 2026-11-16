@@ -21,3 +21,8 @@ export function parseAmount(input: unknown): number {
   if (!Number.isInteger(n) || n <= 0 || n > MAX_AMOUNT) throw new AmountError();
   return n;
 }
+
+/** Доля мастера по визиту: сохранённая при закрытии, а у старых визитов — по прежней формуле. */
+export function masterShareOf(v: { amount: number; masterAmount: number | null }, percent: number): number {
+  return v.masterAmount ?? masterShare(v.amount, percent);
+}

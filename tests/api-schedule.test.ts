@@ -22,7 +22,7 @@ beforeEach(async () => {
   aidana = await mk("aidana", "master");
   const client = await prisma.client.create({ data: { name: "К", assignedMasterId: dana.id, contact: { create: { phone: "+7 700 555 66 77", consentAt: new Date() } } } });
   const svc = await prisma.service.create({ data: { category: "hair", groupName: "Г", name: "С", priceMin: 6000 } });
-  visitId = (await createVisitWithItems(admin, { visitDate: today(), startTime: "10:00", status: "scheduled", masterId: dana.id, clientId: client.id, paymentMethod: "cash", items: [{ serviceId: svc.id, price: 6000 }] })).id;
+  visitId = (await createVisitWithItems(admin, { visitDate: today(), startTime: "10:00", durationMin: 60, status: "scheduled", masterId: dana.id, clientId: client.id, paymentMethod: "cash", items: [{ serviceId: svc.id, price: 6000 }] })).id;
 });
 
 describe("master schedule API", () => {

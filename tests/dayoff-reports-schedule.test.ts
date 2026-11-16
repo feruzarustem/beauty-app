@@ -26,7 +26,7 @@ beforeEach(async () => {
 });
 
 const sched = (masterId: string, date: string, time: string, o: Record<string, unknown> = {}) =>
-  createVisitWithItems(admin, { visitDate: date, startTime: time, status: "scheduled", masterId, clientId, paymentMethod: "cash", confirmDuplicate: true, items: [{ serviceId: svc, price: 6000 }], ...o } as never);
+  createVisitWithItems(admin, { visitDate: date, startTime: time, durationMin: 30, status: "scheduled", masterId, clientId, paymentMethod: "cash", confirmDuplicate: true, items: [{ serviceId: svc, price: 6000 }], ...o } as never);
 
 describe("days off", () => {
   test("admin sets several future days for one master; others are unaffected; can delete", async () => {
@@ -57,7 +57,7 @@ describe("master schedule", () => {
     const days = await masterSchedule(dana, plus(1), 7);
     expect(days).toHaveLength(7);
     expect(days[0].items.map((i) => i.time)).toEqual(["09:00", "09:30"]);
-    expect(days[0].items[0]).toEqual({ id: expect.any(String), time: "09:00", clientName: "Клиентка", services: ["Стрижка"], status: "scheduled" });
+    expect(days[0].items[0]).toEqual({ id: expect.any(String), time: "09:00", durationMin: 30, clientName: "Клиентка", services: ["Стрижка"], status: "scheduled" });
     expect(days[0].freeHours).not.toContain(9);
     expect(days[0].freeHours).toContain(14);
     expect(days[1]).toMatchObject({ dayOff: true, items: [], freeHours: [] });

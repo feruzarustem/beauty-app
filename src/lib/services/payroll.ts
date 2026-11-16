@@ -2,7 +2,7 @@ import type { User } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth/guard";
 import { NotFoundError, PeriodPaidError, ValidationError } from "@/lib/errors";
-import { masterShare, parseAmount } from "@/lib/money";
+import { masterShare, masterShareOf, parseAmount } from "@/lib/money";
 import { periodFor, type Period } from "@/lib/periods";
 import { getMasterSharePercent } from "./settings";
 import { audit } from "./audit";
@@ -29,6 +29,15 @@ export function assertPeriod(p: Period): { start: Date; end: Date } {
   return { start: toDate(p.start), end: toDate(p.end) };
 }
 
+/** Итоги по визитам, у которых доли уже сохранены (старые визиты считаются по прежней формуле). */
+export function figuresFrom(rows: { amount: number; masterAmount: number | null }[], percent: number) {
+  return {
+    visitCount: rows.length,
+    revenue: rows.reduce((s, r) => s + r.amount, 0),
+    calculated: rows.reduce((s, r) => s + masterShareOf(r, percent), 0),
+  };
+}
+
 /** Доля мастера: сумма долей по каждому визиту (округление вниз у каждого). */
 export function figures(amounts: number[], percent: number) {
   return {
@@ -44,7 +53,7 @@ export async function computePayroll(actor: User, period: Period): Promise<Payro
   const percent = await getMasterSharePercent();
   const visits = await prisma.visit.findMany({
     where: { visitDate: { gte: start, lte: end }, status: "done" },
-    select: { masterId: true, amount: true },
+    select: { masterId: true, amount: true, masterAmount: true },
   });
   const payouts = await prisma.payout.findMany({ where: { periodStart: start, periodEnd: end } });
   const withVisits = [...new Set(visits.map((v) => v.masterId))];
@@ -53,7 +62,7 @@ export async function computePayroll(actor: User, period: Period): Promise<Payro
     orderBy: { name: "asc" },
   });
   return masters.map((m) => {
-    const f = figures(visits.filter((v) => v.masterId === m.id).map((v) => v.amount), percent);
+    const f = figuresFrom(visits.filter((v) => v.masterId === m.id), percent);
     const payout = payouts.find((p) => p.masterId === m.id);
     const paid = payout?.status === "paid";
     const calculated = paid ? payout.calculatedAmount : f.calculated;
@@ -76,9 +85,9 @@ async function liveCalculated(masterId: string, start: Date, end: Date): Promise
   const percent = await getMasterSharePercent();
   const visits = await prisma.visit.findMany({
     where: { masterId, visitDate: { gte: start, lte: end }, status: "done" },
-    select: { amount: true },
+    select: { amount: true, masterAmount: true },
   });
-  return figures(visits.map((v) => v.amount), percent).calculated;
+  return figuresFrom(visits, percent).calculated;
 }
 
 async function requireMaster(masterId: string) {

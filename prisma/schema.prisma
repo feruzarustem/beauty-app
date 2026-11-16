@@ -27,8 +27,16 @@ enum ServiceKind {
 
 enum PaymentMethod {
   cash
-  kaspi
+  kaspi // в интерфейсе: Kaspi QR
   transfer
+  kaspi_red
+  halyk
+}
+
+enum DiscountBearer {
+  master
+  salon
+  shared
 }
 
 enum VisitStatus {
@@ -92,6 +100,22 @@ model Visit {
   completedAt     DateTime?
   completedById   String?
   cancelledReason String?
+  cancelledAt     DateTime?
+  // Деньги: amount — итоговая стоимость F (всё, что платит клиент). Предоплата входит в F.
+  listAmount      Int?            // P, полная стоимость до скидки (null у старых визитов = amount)
+  durationMin     Int?
+  prepaidAmount   Int             @default(0)
+  prepaidMethod   PaymentMethod?
+  discountPercent Int             @default(0)
+  discountAmount  Int             @default(0)
+  discountReason  String?
+  discountBearer  DiscountBearer?
+  isBlogger       Boolean         @default(false)
+  // Доли фиксируются при закрытии записи и дальше не пересчитываются задним числом
+  masterAmount    Int?
+  salonAmount     Int?
+  splitPercent    Int?
+  splitWarning    String?
   adjustments   VisitAdjustment[]
   items         VisitItem[]
 
@@ -127,6 +151,9 @@ model DayClosing {
   cashTotal     Int      @default(0)
   kaspiTotal    Int      @default(0)
   transferTotal Int      @default(0)
+  kaspiRedTotal Int      @default(0)
+  halykTotal    Int      @default(0)
+  forfeitedPrepay Int    @default(0)
   isClosed      Boolean  @default(true)
   reopenedAt    DateTime?
   reopenedById  String?

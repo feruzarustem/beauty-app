@@ -4,13 +4,15 @@ import { PrismaClient } from "@prisma/client";
 import { chmodSync, readFileSync, writeFileSync } from "node:fs";
 
 const prisma = new PrismaClient();
+type Delegate = { findMany: () => Promise<unknown[]> };
+const delegates = prisma as unknown as Record<string, Delegate>;
 
 async function main() {
   const out = process.argv[2];
   if (!out) throw new Error("Укажите путь к файлу копии");
-  const models = Object.keys(prisma).filter((k) => !k.startsWith("_") && !k.startsWith("$") && typeof (prisma as never)[k]?.findMany === "function");
+  const models = Object.keys(prisma).filter((k) => !k.startsWith("_") && !k.startsWith("$") && typeof delegates[k]?.findMany === "function");
   const data: Record<string, unknown[]> = {};
-  for (const m of models) data[m] = await (prisma as never)[m].findMany();
+  for (const m of models) data[m] = await delegates[m].findMany();
   writeFileSync(out, JSON.stringify({ createdAt: new Date().toISOString(), tables: data }, null, 1), { mode: 0o600 });
   chmodSync(out, 0o600);
   // проверка: файл читается и строк столько же, сколько в базе

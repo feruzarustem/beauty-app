@@ -4,9 +4,9 @@ import type { User } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth/guard";
 import { NotFoundError, ValidationError } from "@/lib/errors";
-import { masterShare } from "@/lib/money";
+import { masterShareOf } from "@/lib/money";
 import type { Period } from "@/lib/periods";
-import { assertPeriod, figures } from "@/lib/services/payroll";
+import { assertPeriod, figuresFrom } from "@/lib/services/payroll";
 import { getMasterSharePercent } from "@/lib/services/settings";
 
 export type MasterClientDto = { id: string; name: string };
@@ -29,11 +29,12 @@ const visitSelect = {
   id: true,
   visitDate: true,
   amount: true,
+  masterAmount: true,
   client: { select: { name: true } },
   items: { select: { name: true } },
 } as const;
 
-type VisitRow = { id: string; visitDate: Date; amount: number; client: { name: string } | null; items: { name: string }[] };
+type VisitRow = { id: string; visitDate: Date; amount: number; masterAmount: number | null; client: { name: string } | null; items: { name: string }[] };
 
 function toDto(v: VisitRow, percent: number): MasterVisitDto {
   return {
@@ -41,7 +42,7 @@ function toDto(v: VisitRow, percent: number): MasterVisitDto {
     visitDate: v.visitDate.toISOString().slice(0, 10),
     clientName: v.client?.name ?? null,
     amount: v.amount,
-    myShare: masterShare(v.amount, percent),
+    myShare: masterShareOf(v, percent),
     services: v.items.map((i) => i.name),
   };
 }
@@ -84,13 +85,13 @@ export async function masterEarnings(actor: User, period: Period): Promise<Maste
   const percent = await getMasterSharePercent();
   const visits = await prisma.visit.findMany({
     where: { masterId: actor.id, visitDate: { gte: start, lte: end }, status: "done" },
-    select: { amount: true },
+    select: { amount: true, masterAmount: true },
   });
   const payout = await prisma.payout.findUnique({
     where: { masterId_periodStart_periodEnd: { masterId: actor.id, periodStart: start, periodEnd: end } },
   });
   const paid = payout?.status === "paid";
-  const calculated = paid ? payout.calculatedAmount : figures(visits.map((v) => v.amount), percent).calculated;
+  const calculated = paid ? payout.calculatedAmount : figuresFrom(visits, percent).calculated;
   const adjustment = payout?.adjustmentAmount ?? 0;
   return { calculated, adjustment, final: calculated + adjustment, status: paid ? "paid" : "pending" };
 }
@@ -106,6 +107,7 @@ function rangeDates(range: Period): { start: Date; end: Date } {
 export type MasterScheduleItem = {
   id: string;
   time: string;
+  durationMin: number | null;
   clientName: string | null;
   services: string[];
   status: "scheduled" | "done" | "cancelled";
@@ -116,7 +118,7 @@ const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00
 
 /**
  * Личное расписание мастера на N дней (до 14) вперёд от даты. Только её записи, без сумм и без контактов.
- * Свободные часы: рабочие часы салона 08:00–20:00, в которых у неё не начинается ни одна запись.
+ * Свободные часы: часы с 08:00 до 23:00, которые не пересекаются с её записями (без длительности запись считается часовой).
  */
 export async function masterSchedule(actor: User, fromIso: string, days: number): Promise<MasterScheduleDay[]> {
   requireRole(actor, "master");
@@ -128,7 +130,7 @@ export async function masterSchedule(actor: User, fromIso: string, days: number)
   const [rows, off] = await Promise.all([
     prisma.visit.findMany({
       where: { masterId: actor.id, visitDate: range, status: { in: ["scheduled", "done", "cancelled"] }, startTime: { not: null } },
-      select: { id: true, visitDate: true, startTime: true, status: true, client: { select: { name: true } }, items: { select: { name: true } } },
+      select: { id: true, visitDate: true, startTime: true, durationMin: true, status: true, client: { select: { name: true } }, items: { select: { name: true } } },
       orderBy: [{ startTime: "asc" }, { createdAt: "asc" }],
     }),
     prisma.dayOff.findMany({ where: { masterId: actor.id, date: range }, select: { date: true } }),
@@ -138,10 +140,14 @@ export async function masterSchedule(actor: User, fromIso: string, days: number)
     const date = addDays(fromIso, i);
     const items = rows
       .filter((r) => r.visitDate.toISOString().slice(0, 10) === date)
-      .map((r) => ({ id: r.id, time: r.startTime as string, clientName: r.client?.name ?? null, services: r.items.map((x) => x.name), status: r.status }));
+      .map((r) => ({ id: r.id, time: r.startTime as string, durationMin: r.durationMin, clientName: r.client?.name ?? null, services: r.items.map((x) => x.name), status: r.status }));
     const dayOff = offSet.has(date);
-    const busy = new Set(items.filter((x) => x.status !== "cancelled").map((x) => Number(x.time.slice(0, 2))));
-    const freeHours = dayOff ? [] : Array.from({ length: 12 }, (_, h) => h + 8).filter((h) => !busy.has(h));
+    const spans = items.filter((x) => x.status !== "cancelled").map((x) => {
+      const start = Number(x.time.slice(0, 2)) * 60 + Number(x.time.slice(3, 5));
+      return [start, start + (x.durationMin ?? 60)] as const;
+    });
+    const isBusy = (h: number) => spans.some(([a, b]) => a < (h + 1) * 60 && h * 60 < b);
+    const freeHours = dayOff ? [] : Array.from({ length: 15 }, (_, h) => h + 8).filter((h) => !isBusy(h));
     return { date, dayOff, items, freeHours };
   });
 }
