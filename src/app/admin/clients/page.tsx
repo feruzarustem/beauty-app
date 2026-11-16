@@ -1,8 +1,11 @@
+import Link from "next/link";
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/db";
+import { fmtDay } from "@/lib/dates";
+import { formatPhone } from "@/lib/whatsapp";
+import { listClientsWithHistory } from "@/lib/services/clientCard";
 import { requireUser } from "@/lib/auth/current";
 import { ValidationError } from "@/lib/errors";
-import { createClient, deleteClient, updateClientContact } from "@/lib/services/clients";
+import { createClient } from "@/lib/services/clients";
 import { listMasters } from "@/lib/services/users";
 
 async function add(formData: FormData) {
@@ -20,66 +23,52 @@ async function add(formData: FormData) {
   revalidatePath("/admin/clients");
 }
 
-async function savePhone(formData: FormData) {
-  "use server";
-  const admin = await requireUser("admin");
-  try {
-    await updateClientContact(admin, String(formData.get("id")), String(formData.get("phone") ?? ""));
-  } catch (e) {
-    if (!(e instanceof ValidationError)) throw e;
-  }
-  revalidatePath("/admin/clients");
-}
+const FILTERS = [30, 45, 60, 90] as const;
 
-async function remove(formData: FormData) {
-  "use server";
+export default async function ClientsPage({ searchParams }: { searchParams: Promise<{ inactive?: string }> }) {
   const admin = await requireUser("admin");
-  await deleteClient(admin, String(formData.get("id")));
-  revalidatePath("/admin/clients");
-}
-
-export default async function ClientsPage() {
-  const admin = await requireUser("admin");
-  const [masters, clients] = await Promise.all([
-    listMasters(admin),
-    prisma.client.findMany({ include: { contact: true, assignedMaster: { select: { name: true } } }, orderBy: { name: "asc" } }),
-  ]);
+  const sp = await searchParams;
+  const inactive = FILTERS.find((n) => String(n) === sp.inactive);
+  const [masters, clients] = await Promise.all([listMasters(admin), listClientsWithHistory(admin, { inactiveDays: inactive })]);
   return (
     <>
       <h1>Клиенты</h1>
       <p className="sub">Телефоны видны только администратору</p>
+      <div className="inline-form" style={{ marginBottom: 16 }}>
+        <Link href="/admin/clients"><button type="button" className={inactive ? "ghost" : ""}>Все</button></Link>
+        {FILTERS.map((n) => (
+          <Link key={n} href={`/admin/clients?inactive=${n}`}>
+            <button type="button" className={inactive === n ? "" : "ghost"}>Не были &gt; {n} дн.</button>
+          </Link>
+        ))}
+      </div>
+      <p className="muted" style={{ marginBottom: 12 }}>Найдено: {clients.length}</p>
       <ul className="list">
         {clients.map((c) => (
           <li key={c.id} className="card">
             <div className="row">
-              <strong>{c.name}</strong>
-              <span className="muted">мастер: {c.assignedMaster?.name ?? "—"}</span>
+              <strong><Link href={`/admin/clients/${c.id}`}>{c.name}</Link></strong>
+              <span className="muted">мастер: {c.masterName ?? "—"}</span>
             </div>
-            <div className="inline-form" style={{ marginTop: 10 }}>
-              <form action={savePhone} className="inline-form">
-                <input type="hidden" name="id" value={c.id} />
-                <input name="phone" defaultValue={c.contact?.phone ?? ""} placeholder="Телефон" />
-                <button type="submit" className="ghost">Сохранить</button>
-              </form>
-              <form action={remove}>
-                <input type="hidden" name="id" value={c.id} />
-                <button type="submit" className="danger">Удалить клиента и контакты</button>
-              </form>
+            <div className="muted" style={{ marginTop: 4 }}>
+              {c.phone ? formatPhone(c.phone) : "телефон не указан"} · визитов: {c.totalVisits} ·{" "}
+              {c.lastVisit ? `последний: ${fmtDay(c.lastVisit)} (${c.daysSince} дн. назад)` : "ещё не был(а)"}
             </div>
           </li>
         ))}
+        {clients.length === 0 && <li className="muted">Никого не найдено</li>}
       </ul>
       <h2>Добавить клиента</h2>
       <form action={add} className="stack">
         <input name="name" placeholder="Имя" required />
-        <input name="phone" placeholder="Телефон (необязательно)" />
+        <input name="phone" placeholder="Телефон, например +7 700 123 45 67 (необязательно)" />
         <select name="masterId" required defaultValue="">
           <option value="" disabled>Закреплённый мастер</option>
           {masters.map((m) => (
             <option key={m.id} value={m.id}>{m.name}</option>
           ))}
         </select>
-        <small className="muted">Сохраняя телефон, вы подтверждаете, что клиент согласен на хранение своих данных.</small>
+        <small className="muted">Сохраняя телефон, вы подтверждаете, что клиент согласен на хранение своих данных. Номер сохраняется в международном формате.</small>
         <button type="submit">Добавить</button>
       </form>
     </>

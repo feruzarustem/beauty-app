@@ -685,3 +685,55 @@ td.off-day {
   .md { min-height: 56px; padding: 4px; }
   .md em, .md small { font-size: 0.62rem; }
 }
+
+/* ---------- Закрытие записи, предоплата ---------- */
+.prepay {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  cursor: pointer;
+}
+.prepay input,
+.radio input {
+  accent-color: var(--gold);
+  width: 18px;
+  height: 18px;
+  padding: 0;
+}
+.radio {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  cursor: pointer;
+}
+.duration {
+  display: grid;
+  gap: 8px;
+}
+.close-form {
+  max-width: 560px;
+}
+.total-row {
+  padding: 3px 0;
+}
+.badge-prepaid {
+  background: #e8efe2;
+}
+.badge-noprepay {
+  background: transparent;
+  border: 1px dashed var(--line);
+  color: var(--muted);
+}
+fieldset:disabled {
+  opacity: 0.5;
+}
+td.busy {
+  background: var(--blush);
+}
+.busy-label {
+  display: block;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.75rem;
+  padding: 8px 0;
+}

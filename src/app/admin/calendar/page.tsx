@@ -8,7 +8,9 @@ import { calendarRange } from "@/lib/services/calendar";
 import { monthRange } from "@/lib/services/reports";
 
 type View = "day" | "week" | "month";
-const HOURS = Array.from({ length: 12 }, (_, i) => i + 8);
+const HOURS = Array.from({ length: 15 }, (_, i) => i + 8);
+const mins = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 const STATUS_CLASS = { scheduled: "ev", done: "ev done", cancelled: "ev off" } as const;
 
 export default async function CalendarPage({ searchParams }: { searchParams: Promise<{ view?: string; d?: string }> }) {
@@ -90,17 +92,22 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
                     <td className="hour">{hh}:00</td>
                     {masters.map((m) => {
                       if (off.has(`${m.id}|${d}`)) return <td key={m.id} className="off-day">выходной</td>;
-                      const here = cal.entries.filter((e) => e.masterId === m.id && e.time?.startsWith(`${hh}:`));
-                      const free = here.every((e) => e.status === "cancelled");
+                      const mine = cal.entries.filter((e) => e.masterId === m.id && e.date === d && e.time);
+                      const here = mine.filter((e) => e.time?.startsWith(`${hh}:`));
+                      const live = mine.filter((e) => e.status !== "cancelled");
+                      const covered = live.some((e) => mins(e.time as string) < (h + 1) * 60 && h * 60 < mins(e.time as string) + (e.durationMin ?? 60));
+                      const startsLive = here.some((e) => e.status !== "cancelled");
                       return (
-                        <td key={m.id}>
+                        <td key={m.id} className={covered && !startsLive ? "busy" : undefined}>
                           {here.map((e) => (
                             <Link key={e.id} href={`/admin/appointments/${e.id}`} className={STATUS_CLASS[e.status]}>
-                              <b>{e.time}</b> {e.clientName ?? "—"}
+                              <b>{e.time}{e.durationMin ? `–${hhmm(mins(e.time as string) + e.durationMin)}` : ""}</b> {e.clientName ?? "—"}
                               <small>{e.services.join(", ")}</small>
+                              {e.status === "scheduled" && <small>{e.prepaidAmount > 0 ? "✓ предоплата" : "без предоплаты"}</small>}
                             </Link>
                           ))}
-                          {free && (
+                          {covered && !startsLive && <span className="busy-label">занято</span>}
+                          {!covered && !startsLive && (
                             <Link href={`/admin/visits/new?status=scheduled&masterId=${m.id}&date=${d}&time=${hh}:00`} className="slot" aria-label={`Записать на ${hh}:00`}>+</Link>
                           )}
                         </td>

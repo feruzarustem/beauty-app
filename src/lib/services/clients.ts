@@ -2,18 +2,13 @@ import type { User } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth/guard";
 import { NotFoundError, ValidationError } from "@/lib/errors";
+import { normalizePhone } from "@/lib/whatsapp";
 
 export type AdminClientDto = { id: string; name: string; assignedMasterId: string | null };
 
 export type AdminClientDetailDto = AdminClientDto & { phone: string | null };
 
-function cleanPhone(phone: string): string {
-  const p = phone.trim();
-  if (!/^\+?[\d\s\-()]+$/.test(p) || p.replace(/\D/g, "").length < 7) {
-    throw new ValidationError("Неверный номер телефона");
-  }
-  return p;
-}
+const cleanPhone = normalizePhone;
 
 export async function createClient(
   actor: User,

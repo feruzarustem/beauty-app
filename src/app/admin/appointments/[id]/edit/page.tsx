@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth/current";
 import { friendlyMessage } from "@/lib/actionErrors";
 import { CATEGORY_INFO } from "@/lib/categories";
-import { parsePayment } from "@/lib/payment";
+import { parsePayment, parsePrepayMethod } from "@/lib/payment";
 import { VisitForm } from "@/components/VisitForm";
 import { updateScheduledVisit } from "@/lib/services/appointments";
 import { getAppointment } from "@/lib/services/calendar";
@@ -24,7 +24,7 @@ async function save(formData: FormData) {
     } catch {
       items = [];
     }
-    await updateScheduledVisit(admin, id, { masterId: f("masterId"), clientId: client.id, paymentMethod: parsePayment(f("method")), items });
+    await updateScheduledVisit(admin, id, { masterId: f("masterId"), clientId: client.id, paymentMethod: parsePayment(f("method")), items, durationMin: f("durationMin") || undefined, prepaid: formData.get("prepaid") === "on", prepaidMethod: parsePrepayMethod(f("prepaidMethod")) });
   } catch (e) {
     const msg = friendlyMessage(e);
     if (!msg) throw e;
@@ -68,6 +68,9 @@ export default async function EditAppointmentPage({
           masterId: a.masterId,
           client: a.clientName ?? "",
           method: a.paymentMethod,
+          duration: a.durationMin ? String(a.durationMin) : undefined,
+          prepaid: a.prepaidAmount > 0,
+          prepaidMethod: a.prepaidMethod ?? undefined,
           items: a.items.filter((i) => i.serviceId).map((i) => ({ serviceId: i.serviceId as string, price: i.price, belowMinReason: i.belowMinReason ?? undefined })),
         }}
       />

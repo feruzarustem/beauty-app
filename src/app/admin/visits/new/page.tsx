@@ -8,10 +8,10 @@ import { findOrCreateClientByName } from "@/lib/services/clients";
 import { createVisitWithItems } from "@/lib/services/visits";
 import { listCatalog } from "@/lib/services/catalog";
 import { CATEGORY_INFO } from "@/lib/categories";
-import { parsePayment } from "@/lib/payment";
+import { parsePayment, parsePrepayMethod } from "@/lib/payment";
 import { VisitForm, type InitialItem } from "@/components/VisitForm";
 
-type SP = { error?: string; dup?: string; masterId?: string; client?: string; items?: string; method?: string; date?: string; time?: string; status?: string };
+type SP = { error?: string; dup?: string; masterId?: string; client?: string; items?: string; method?: string; date?: string; time?: string; status?: string; duration?: string; prepaid?: string; pm?: string };
 
 function parseItems(raw: string): InitialItem[] {
   try {
@@ -29,7 +29,7 @@ async function addVisit(formData: FormData) {
   "use server";
   const admin = await requireUser("admin");
   const f = (k: string) => String(formData.get(k) ?? "");
-  const keep = new URLSearchParams({ masterId: f("masterId"), client: f("client"), items: f("items"), method: f("method"), date: f("date"), time: f("startTime"), status: f("status") });
+  const keep = new URLSearchParams({ masterId: f("masterId"), client: f("client"), items: f("items"), method: f("method"), date: f("date"), time: f("startTime"), status: f("status"), duration: f("durationMin"), prepaid: formData.get("prepaid") ? "1" : "", pm: f("prepaidMethod") });
   try {
     const client = await findOrCreateClientByName(admin, f("client"), f("masterId"));
     await createVisitWithItems(admin, {
@@ -40,6 +40,9 @@ async function addVisit(formData: FormData) {
       paymentMethod: parsePayment(f("method")),
       status: f("status") === "scheduled" ? "scheduled" : "done",
       startTime: f("startTime") || undefined,
+      durationMin: f("durationMin") || undefined,
+      prepaid: formData.get("prepaid") === "on",
+      prepaidMethod: parsePrepayMethod(f("prepaidMethod")),
       confirmDuplicate: formData.get("confirmDuplicate") === "on",
     });
   } catch (e) {
@@ -88,7 +91,7 @@ export default async function NewVisitPage({ searchParams }: { searchParams: Pro
         clients={clients.map((c) => c.name)}
         action={addVisit}
         today={todayInBusinessTz(new Date())}
-        initial={{ masterId: sp.masterId, client: sp.client, method: sp.method, date: sp.date, time: sp.time, status: sp.status, items: parseItems(sp.items ?? "[]"), dup: !!sp.dup }}
+        initial={{ masterId: sp.masterId, client: sp.client, method: sp.method, date: sp.date, time: sp.time, status: sp.status, duration: sp.duration, prepaid: sp.prepaid === "1", prepaidMethod: sp.pm, items: parseItems(sp.items ?? "[]"), dup: !!sp.dup }}
       />
     </>
   );

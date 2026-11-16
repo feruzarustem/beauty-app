@@ -24,7 +24,7 @@ describe("client contacts (admin only)", () => {
   test("createClient with a phone stores it in client_contacts with consent time", async () => {
     const c = await createClient(admin, { name: "Айгуль", assignedMasterId: master.id, phone: "+7 700 000 00 01" });
     const contact = await prisma.clientContact.findUnique({ where: { clientId: c.id } });
-    expect(contact?.phone).toBe("+7 700 000 00 01");
+    expect(contact?.phone).toBe("+77000000001");
     expect(contact?.consentAt).toBeInstanceOf(Date);
   });
   test("createClient without a phone creates no contact row", async () => {
@@ -38,11 +38,11 @@ describe("client contacts (admin only)", () => {
     const c = await createClient(admin, { name: "X", assignedMasterId: master.id });
     await updateClientContact(admin, c.id, "+7 701 111 11 11");
     await updateClientContact(admin, c.id, "+7 702 222 22 22");
-    expect((await prisma.clientContact.findUniqueOrThrow({ where: { clientId: c.id } })).phone).toBe("+7 702 222 22 22");
+    expect((await prisma.clientContact.findUniqueOrThrow({ where: { clientId: c.id } })).phone).toBe("+77022222222");
   });
   test("getClientForAdmin returns name, master and phone", async () => {
     const c = await createClient(admin, { name: "Айгуль", assignedMasterId: master.id, phone: "+7 700 000 00 01" });
-    expect(await getClientForAdmin(admin, c.id)).toMatchObject({ name: "Айгуль", phone: "+7 700 000 00 01", assignedMasterId: master.id });
+    expect(await getClientForAdmin(admin, c.id)).toMatchObject({ name: "Айгуль", phone: "+77000000001", assignedMasterId: master.id });
   });
   test("master cannot read, change or delete contacts", async () => {
     const c = await createClient(admin, { name: "X", assignedMasterId: master.id, phone: "+7 700 000 00 01" });
