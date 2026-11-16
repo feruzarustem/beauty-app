@@ -2,6 +2,8 @@
 
 Веб-приложение для небольшого салона: запись клиентов и расписание мастеров, услуги и прайс, учёт оплаты, автоматический расчёт зарплаты (50/50), ежедневное закрытие дня и отчёты за периоды.
 
+Деньги: единая формула расчёта (предоплата, скидки, проценты по специализациям) описана в [`docs/decisions.md`](docs/decisions.md).
+
 Документы проекта: [`docs/product-brief.md`](docs/product-brief.md) (продуктовый бриф), [`docs/decisions.md`](docs/decisions.md) (принятые решения), [`docs/superpowers/`](docs/superpowers/) (спецификация и план MVP).
 
 ## Технологии
@@ -53,6 +55,13 @@ npm run dev        # http://localhost:3000
 - **Sloop Script Three** и **Stolzl Light** — фирменные шрифты. Из-за неизвестной лицензии файлы **не хранятся в git** (папка `public/fonts/` в `.gitignore`).
 - Положите файлы в `public/fonts/`: `SloopScriptThree.ttf`, `Stolzl-Light.woff2` (или `.otf`). Без них сайт работает, но показывает запасной шрифт.
 - Подключение описано в `src/app/globals.css` (`@font-face`).
+
+## Резервная копия базы
+
+```bash
+npx tsx --env-file=.env scripts/backup-db.ts ~/Desktop/backup.json   # выгрузка всех таблиц с проверкой
+```
+Делайте копию перед любым изменением структуры базы.
 
 ## Проверки
 

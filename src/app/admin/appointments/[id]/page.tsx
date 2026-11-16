@@ -5,7 +5,7 @@ import { friendlyMessage } from "@/lib/actionErrors";
 import { fmtDay } from "@/lib/dates";
 import { CloseVisitForm } from "@/components/CloseVisitForm";
 import { cancelVisit, closeVisit, completeVisit, moveVisit } from "@/lib/services/appointments";
-import { confirmText, waLink } from "@/lib/whatsapp";
+import { confirmText, formatPhone, waLink } from "@/lib/whatsapp";
 import { getSharePercent } from "@/lib/services/settings";
 import { PAYMENT_LABEL, parsePayment, parsePrepayMethod } from "@/lib/payment";
 import type { DiscountBearer } from "@prisma/client";
@@ -130,7 +130,7 @@ export default async function AppointmentPage({
           </>
         )}
         {a.splitWarning && <p className="alert">{a.splitWarning}</p>}
-        {a.clientPhone && <p className="muted" style={{ marginTop: 8 }}>Телефон: {a.clientPhone}</p>}
+        {a.clientPhone && <p className="muted" style={{ marginTop: 8 }}>Телефон: {formatPhone(a.clientPhone)}</p>}
         {a.cancelledReason && <p className="muted">Причина отмены: {a.cancelledReason}{a.prepaidAmount > 0 ? `. Предоплата ${fmt(a.prepaidAmount)} остаётся салону.` : ""}</p>}
       </div>
 
