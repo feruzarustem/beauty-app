@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { SESSION_COOKIE } from "@/lib/auth/session";
 
-export async function POST(req: Request) {
-  const res = NextResponse.redirect(new URL("/login", req.url), 303);
+/** Относительный редирект: за прокси или туннелем абсолютный адрес указывал бы на localhost. */
+export async function POST() {
+  const res = new NextResponse(null, { status: 303, headers: { Location: "/login" } });
   res.cookies.delete(SESSION_COOKIE);
   return res;
 }
