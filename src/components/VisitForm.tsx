@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { formatPrice } from "@/lib/price";
-import { PAYMENT_LABEL, PAYMENT_METHODS } from "@/lib/payment";
+import { PAYMENT_LABEL, PAYMENT_METHODS, PREPAY_METHODS } from "@/lib/payment";
+import { PREPAY_AMOUNT } from "@/lib/split";
 
 export type FormService = {
   id: string;
@@ -38,11 +39,17 @@ export function VisitForm({
   clients: string[];
   action: (formData: FormData) => void | Promise<void>;
   today: string;
-  initial: { masterId?: string; client?: string; method?: string; date?: string; time?: string; status?: string; items?: InitialItem[]; dup?: boolean };
+  initial: { masterId?: string; client?: string; method?: string; date?: string; time?: string; status?: string; duration?: string; prepaid?: boolean; prepaidMethod?: string; items?: InitialItem[]; dup?: boolean };
   mode?: "create" | "edit";
   visitId?: string;
 }) {
   const [status, setStatus] = useState(initial.status === "scheduled" ? "scheduled" : "done");
+  const presets = ["10", "20", "30", "40", "60", "90", "120", "150", "180"];
+  const startDur = initial.duration ?? (initial.status === "scheduled" || mode === "edit" ? "60" : "");
+  const [preset, setPreset] = useState(startDur && !presets.includes(startDur) ? "custom" : startDur);
+  const [custom, setCustom] = useState(startDur && !presets.includes(startDur) ? startDur : "");
+  const duration = preset === "custom" ? custom : preset;
+  const [prepaid, setPrepaid] = useState(initial.prepaid === true);
   const [masterId, setMasterId] = useState(initial.masterId ?? "");
   const [chosen, setChosen] = useState<Record<string, Chosen>>(() => {
     const m: Record<string, Chosen> = {};
@@ -183,12 +190,36 @@ export function VisitForm({
       {mode === "create" && (
         <>
           <select name="status" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Тип записи">
-            <option value="done">Уже выполнена (оплачена)</option>
+            <option value="done">Уже выполнена</option>
             <option value="scheduled">Запись на будущее</option>
           </select>
           <input name="date" type="date" defaultValue={initial.date ?? today} required />
-          <input name="startTime" type="time" min="08:00" max="19:59" defaultValue={initial.time ?? ""} required={status === "scheduled"} aria-label="Время начала" />
+          <input name="startTime" type="time" min="08:00" max="22:59" defaultValue={initial.time ?? ""} required={status === "scheduled"} aria-label="Время начала" />
         </>
+      )}
+      <div className="duration">
+        <select value={preset} onChange={(e) => setPreset(e.target.value)} aria-label="Длительность" required={status === "scheduled" || mode === "edit"}>
+          <option value="">{status === "scheduled" || mode === "edit" ? "Длительность" : "Длительность (необязательно)"}</option>
+          {presets.map((m) => (
+            <option key={m} value={m}>{Number(m) < 60 ? `${m} минут` : Number(m) % 60 === 0 ? `${Number(m) / 60} ч` : `${Math.floor(Number(m) / 60)} ч ${Number(m) % 60} мин`}</option>
+          ))}
+          <option value="custom">Другое время…</option>
+        </select>
+        {preset === "custom" && (
+          <input inputMode="numeric" placeholder="Минут (10–600)" value={custom} onChange={(e) => setCustom(e.target.value.replace(/\D/g, ""))} aria-label="Длительность в минутах" required />
+        )}
+        <input type="hidden" name="durationMin" value={duration} />
+      </div>
+      <label className="prepay">
+        <input type="checkbox" name="prepaid" checked={prepaid} onChange={(e) => setPrepaid(e.target.checked)} />
+        <span>Предоплата {PREPAY_AMOUNT.toLocaleString("ru-RU")} ₸ получена</span>
+      </label>
+      {prepaid && (
+        <select name="prepaidMethod" defaultValue={initial.prepaidMethod ?? "transfer"} aria-label="Способ предоплаты (только безналичный)">
+          {PREPAY_METHODS.map((m) => (
+            <option key={m} value={m}>{PAYMENT_LABEL[m]}</option>
+          ))}
+        </select>
       )}
       {initial.dup && (
         <label>

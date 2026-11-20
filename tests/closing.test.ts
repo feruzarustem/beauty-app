@@ -29,7 +29,7 @@ describe("dayFigures", () => {
     await visit(10000, "kaspi", other.id);
     await visit(4001, "transfer");
     const svc = (await prisma.service.create({ data: { category: "hair", groupName: "Г", name: "С", priceMin: 6000 } })).id;
-    await createVisitWithItems(admin, { visitDate: today(), startTime: "10:00", status: "scheduled", masterId: master.id, clientId, paymentMethod: "cash", items: [{ serviceId: svc, price: 6000 }] });
+    await createVisitWithItems(admin, { visitDate: today(), startTime: "10:00", durationMin: 30, status: "scheduled", masterId: master.id, clientId, paymentMethod: "cash", items: [{ serviceId: svc, price: 6000 }] });
     const f = await dayFigures(admin, today());
     expect(f).toMatchObject({ visitCount: 3, revenue: 29002, mastersTotal: 7500 + 5000 + 2000, cashTotal: 15001, kaspiTotal: 10000, transferTotal: 4001, unfinished: 1 });
     expect(f.salonShare).toBe(29002 - 14500);
@@ -70,7 +70,7 @@ describe("closeDay", () => {
   });
   test("unresolved scheduled visits block closing", async () => {
     const svc = (await prisma.service.create({ data: { category: "hair", groupName: "Г", name: "С", priceMin: 6000 } })).id;
-    await createVisitWithItems(admin, { visitDate: today(), startTime: "10:00", status: "scheduled", masterId: master.id, clientId, paymentMethod: "cash", items: [{ serviceId: svc, price: 6000 }] });
+    await createVisitWithItems(admin, { visitDate: today(), startTime: "10:00", durationMin: 30, status: "scheduled", masterId: master.id, clientId, paymentMethod: "cash", items: [{ serviceId: svc, price: 6000 }] });
     await expect(closeDay(admin, today(), 0)).rejects.toBeInstanceOf(ValidationError);
   });
   test("a master cannot close the day", async () => {

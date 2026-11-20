@@ -14,6 +14,8 @@ export type CalendarEntry = {
   status: VisitStatus;
   amount: number;
   paymentMethod: PaymentMethod;
+  durationMin: number | null;
+  prepaidAmount: number;
 };
 
 /** Единый календарь салона: те же визиты, что видит мастер, но без ограничения по мастеру. */
@@ -39,6 +41,8 @@ export async function calendarRange(actor: User, fromIso: string, toIso: string)
     status: v.status,
     amount: v.amount,
     paymentMethod: v.paymentMethod,
+    durationMin: v.durationMin,
+    prepaidAmount: v.prepaidAmount,
   }));
   return { entries, daysOff: off.map((d) => ({ masterId: d.masterId, date: d.date.toISOString().slice(0, 10) })) };
 }
@@ -47,6 +51,17 @@ export type AppointmentDetail = CalendarEntry & {
   clientId: string | null;
   clientPhone: string | null;
   cancelledReason: string | null;
+  masterCategory: string | null;
+  listAmount: number;
+  prepaidMethod: PaymentMethod | null;
+  discountPercent: number;
+  discountAmount: number;
+  discountReason: string | null;
+  discountBearer: string | null;
+  isBlogger: boolean;
+  masterAmount: number | null;
+  salonAmount: number | null;
+  splitWarning: string | null;
   items: { id: string; serviceId: string | null; name: string; price: number; priceMin: number; belowMinReason: string | null }[];
 };
 
@@ -56,7 +71,7 @@ export async function getAppointment(actor: User, id: string): Promise<Appointme
   const v = await prisma.visit.findUnique({
     where: { id },
     include: {
-      master: { select: { name: true } },
+      master: { select: { name: true, category: true } },
       client: { select: { name: true, contact: { select: { phone: true } } } },
       items: { orderBy: { createdAt: "asc" } },
     },
@@ -76,6 +91,19 @@ export async function getAppointment(actor: User, id: string): Promise<Appointme
     amount: v.amount,
     paymentMethod: v.paymentMethod,
     cancelledReason: v.cancelledReason,
+    masterCategory: v.master.category,
+    listAmount: v.listAmount ?? v.amount,
+    durationMin: v.durationMin,
+    prepaidAmount: v.prepaidAmount,
+    prepaidMethod: v.prepaidMethod,
+    discountPercent: v.discountPercent,
+    discountAmount: v.discountAmount,
+    discountReason: v.discountReason,
+    discountBearer: v.discountBearer,
+    isBlogger: v.isBlogger,
+    masterAmount: v.masterAmount,
+    salonAmount: v.salonAmount,
+    splitWarning: v.splitWarning,
     items: v.items.map((i) => ({ id: i.id, serviceId: i.serviceId, name: i.name, price: i.price, priceMin: i.priceMin, belowMinReason: i.belowMinReason })),
   };
 }

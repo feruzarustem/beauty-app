@@ -74,8 +74,11 @@ export default async function ClosingPage({ searchParams }: { searchParams: Prom
         {row("Доля салона", closed ? closing!.salonShare : f.salonShare)}
         <hr className="divider" />
         {row("Наличные", closed ? closing!.cashTotal : f.cashTotal)}
-        {row("Kaspi/QR", closed ? closing!.kaspiTotal : f.kaspiTotal)}
+        {row("Kaspi QR", closed ? closing!.kaspiTotal : f.kaspiTotal)}
+        {row("Kaspi Red", closed ? closing!.kaspiRedTotal : f.kaspiRedTotal)}
+        {row("Halyk Bank", closed ? closing!.halykTotal : f.halykTotal)}
         {row("Перевод", closed ? closing!.transferTotal : f.transferTotal)}
+        {(closed ? closing!.forfeitedPrepay : f.forfeitedPrepay) > 0 && row("В том числе предоплаты отменённых записей (остаются салону)", closed ? closing!.forfeitedPrepay : f.forfeitedPrepay)}
         <hr className="divider" />
         {row("Общая сумма по системе", closed ? closing!.revenue : f.revenue)}
       </div>
@@ -105,7 +108,7 @@ export default async function ClosingPage({ searchParams }: { searchParams: Prom
       ) : (
         <>
           <h2>Сверка кассы</h2>
-          <p className="sub">Сумма наличных по системе: {fmt(f.cashTotal)}. Пересчитайте деньги и введите фактическую сумму.</p>
+          <p className="sub">Наличные по системе: {fmt(f.cashTotal)} (только остатки, оплаченные наличными: предоплата безналичная). Пересчитайте деньги и введите фактическую сумму.</p>
           <form action={doClose} className="stack">
             <input type="hidden" name="date" value={d} />
             <input name="actualCash" inputMode="numeric" placeholder="Фактически в кассе, ₸" defaultValue={sp.cash ?? ""} required />

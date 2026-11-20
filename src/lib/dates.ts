@@ -14,3 +14,8 @@ export const eachDay = (start: string, n: number) => Array.from({ length: n }, (
 export function isIsoDate(v: unknown): v is string {
   return typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(at(v).getTime()) && at(v).toISOString().slice(0, 10) === v;
 }
+
+/** Границы календарного дня по Алматы (UTC+5) как моменты времени: [начало, начало следующего дня). */
+export function almatyDayBounds(iso: string): { from: Date; to: Date } {
+  return { from: new Date(`${iso}T00:00:00+05:00`), to: new Date(new Date(`${iso}T00:00:00+05:00`).getTime() + 86_400_000) };
+}

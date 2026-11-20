@@ -31,7 +31,7 @@ async function main() {
     const c = await client(p.name, m.id);
     const s = await service(p.svc);
     await createVisitWithItems(admin, {
-      visitDate: addDays(today, p.day), startTime: p.time, status: p.status, masterId: m.id, clientId: c.id,
+      visitDate: addDays(today, p.day), startTime: p.time, durationMin: 60, prepaid: p.status === "scheduled" && p.price >= 8000, status: p.status, masterId: m.id, clientId: c.id,
       paymentMethod: p.method, confirmDuplicate: true, items: [{ serviceId: s.id, price: p.price }],
     });
   }

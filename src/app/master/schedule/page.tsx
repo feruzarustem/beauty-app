@@ -60,7 +60,7 @@ export default async function MasterSchedulePage({ searchParams }: { searchParam
               {d.items.map((i) => (
                 <div key={i.id} className="row" style={{ marginTop: 10 }}>
                   <span>
-                    <b>{i.time}</b> {i.clientName ?? "—"}
+                    <b>{i.time}{i.durationMin ? ` · ${i.durationMin} мин` : ""}</b> {i.clientName ?? "—"}
                     <div className="muted" style={{ fontSize: "0.85rem" }}>{i.services.join(", ")}</div>
                   </span>
                   <span className="inline-form">

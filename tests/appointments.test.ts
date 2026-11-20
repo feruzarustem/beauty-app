@@ -28,6 +28,7 @@ beforeEach(async () => {
 const appt = (o: Record<string, unknown> = {}) => ({
   visitDate: plusDays(today(), 1),
   startTime: "11:30",
+  durationMin: 30,
   status: "scheduled" as const,
   masterId: akbota.id,
   clientId,
@@ -48,12 +49,20 @@ describe("creating appointments", () => {
     await completeVisit(akbota, id);
     expect((await payrollOf(akbota)).calculated).toBe(3000);
   });
-  test("time must be HH:MM inside working hours 08:00–19:59", async () => {
-    for (const t of ["07:59", "20:00", "9:30", "", "ab:cd"]) {
+  test("time must be HH:MM from 08:00; the procedure must end by 23:00 (not by 20:00)", async () => {
+    for (const t of ["07:59", "23:00", "9:30", "", "ab:cd"]) {
       await expect(createVisitWithItems(admin, appt({ startTime: t }))).rejects.toBeInstanceOf(ValidationError);
     }
     await expect(createVisitWithItems(admin, appt({ startTime: "08:00" }))).resolves.toBeTruthy();
-    await expect(createVisitWithItems(admin, appt({ startTime: "19:59", items: [{ serviceId: style, price: 5000 }] }))).resolves.toBeTruthy();
+    await expect(createVisitWithItems(admin, appt({ startTime: "21:30", durationMin: 90, items: [{ serviceId: style, price: 5000 }] }))).resolves.toBeTruthy();
+    await expect(createVisitWithItems(admin, appt({ startTime: "22:00", durationMin: 90, items: [{ serviceId: cut, price: 6000 }] }))).rejects.toBeInstanceOf(ValidationError);
+  });
+  test("duration is required for appointments and must be 10–600 minutes", async () => {
+    await expect(createVisitWithItems(admin, appt({ durationMin: undefined }))).rejects.toBeInstanceOf(ValidationError);
+    for (const d of [5, 0, 601, 1.5, "abc", -10]) {
+      await expect(createVisitWithItems(admin, appt({ durationMin: d }))).rejects.toBeInstanceOf(ValidationError);
+    }
+    await expect(createVisitWithItems(admin, appt({ durationMin: 10 }))).resolves.toBeTruthy();
   });
   test("a master's day off blocks only that master", async () => {
     const date = plusDays(today(), 1);
@@ -62,9 +71,21 @@ describe("creating appointments", () => {
     const nail = (await prisma.service.create({ data: { category: "nail", groupName: "Г", name: "Маникюр", priceMin: 4000 } })).id;
     await expect(createVisitWithItems(admin, appt({ masterId: aidana.id, items: [{ serviceId: nail, price: 4000 }] }))).resolves.toBeTruthy();
   });
-  test("overlapping appointments of one master are allowed (express, 4-hand work)", async () => {
-    await createVisitWithItems(admin, appt());
-    await expect(createVisitWithItems(admin, appt({ items: [{ serviceId: style, price: 5000 }] }))).resolves.toBeTruthy();
+  test("two overlapping appointments of one master are refused; back-to-back, other masters and cancelled ones are fine", async () => {
+    await createVisitWithItems(admin, appt({ startTime: "11:00", durationMin: 60 }));
+    const style1 = [{ serviceId: style, price: 5000 }];
+    const ok = { confirmDuplicate: true };
+    await expect(createVisitWithItems(admin, appt({ startTime: "11:30", durationMin: 30, items: style1 }))).rejects.toThrow(/занят с 11:00 до 12:00/);
+    await expect(createVisitWithItems(admin, appt({ startTime: "10:30", durationMin: 60, items: style1 }))).rejects.toBeInstanceOf(ValidationError);
+    await expect(createVisitWithItems(admin, appt({ startTime: "10:00", durationMin: 60, items: style1, ...ok }))).resolves.toBeTruthy(); // встык: конец = начало
+    await expect(createVisitWithItems(admin, appt({ startTime: "12:00", durationMin: 30, items: style1, ...ok }))).resolves.toBeTruthy();
+    const nail = (await prisma.service.create({ data: { category: "nail", groupName: "Г", name: "Маникюр", priceMin: 4000 } })).id;
+    await expect(createVisitWithItems(admin, appt({ masterId: aidana.id, startTime: "11:00", durationMin: 60, items: [{ serviceId: nail, price: 4000 }], ...ok }))).resolves.toBeTruthy();
+  });
+  test("a cancelled appointment frees the time", async () => {
+    const { id } = await createVisitWithItems(admin, appt({ startTime: "15:00", durationMin: 60 }));
+    await cancelVisit(admin, id, "отмена");
+    await expect(createVisitWithItems(admin, appt({ startTime: "15:00", durationMin: 60, confirmDuplicate: true }))).resolves.toBeTruthy();
   });
   test("Kaspi/QR is a valid payment method", async () => {
     const { id } = await createVisitWithItems(admin, appt({ paymentMethod: "kaspi" }));
@@ -78,7 +99,8 @@ describe("creating appointments", () => {
 });
 
 describe("completeVisit", () => {
-  const make = (date = today()) => createVisitWithItems(admin, appt({ visitDate: date, confirmDuplicate: true })).then((r) => r.id);
+  let n = 0;
+  const make = (date = today()) => createVisitWithItems(admin, appt({ visitDate: date, startTime: `${String(9 + n++).padStart(2, "0")}:00`, confirmDuplicate: true })).then((r) => r.id);
   test("a master completes her own scheduled visit; the amount does not change", async () => {
     const id = await make();
     await completeVisit(akbota, id);
@@ -111,6 +133,12 @@ describe("completeVisit", () => {
 
 describe("cancel, move, edit (admin only)", () => {
   const make = () => createVisitWithItems(admin, appt()).then((r) => r.id);
+  test("a move into an occupied slot is refused", async () => {
+    await createVisitWithItems(admin, appt({ startTime: "14:00", durationMin: 60, visitDate: plusDays(today(), 3) }));
+    const id = await make();
+    await expect(moveVisit(admin, id, { date: plusDays(today(), 3), time: "14:30" })).rejects.toBeInstanceOf(ValidationError);
+    await expect(moveVisit(admin, id, { date: plusDays(today(), 3), time: "15:00" })).resolves.toBeUndefined();
+  });
   test("cancel needs a reason, is not counted, and masters cannot do it", async () => {
     const id = await make();
     await expect(cancelVisit(admin, id, " ")).rejects.toBeInstanceOf(ValidationError);
